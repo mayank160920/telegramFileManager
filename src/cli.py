@@ -328,10 +328,18 @@ class UserInterface:
                     self.scr.addstr(tlY-1, 0, self.notifBuf, curses.A_STANDOUT)
                     self.notifBuf = ''
 
+                ignoredTransfers = 0
+                for i in range(1, self.sHandler.max_sessions+1):
+                    if (
+                        self.sHandler.resumeData[str(i)] and
+                        self.sHandler.resumeData[str(i)]['handled'] == 2
+                       ):
+                        ignoredTransfers += 1
+
                 ch = self.scr.getch()
                 if ch == curses.KEY_UP and self.selected > 1:
                     self.selected -= 1
-                elif ch == curses.KEY_DOWN and self.selected < self.sHandler.max_sessions - len(self.sHandler.freeSessions):
+                elif ch == curses.KEY_DOWN and self.selected < self.sHandler.max_sessions - (len(self.sHandler.freeSessions) + ignoredTransfers):
                     self.selected += 1
 
                 elif ch == ord('q'):
