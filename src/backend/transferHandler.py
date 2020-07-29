@@ -243,8 +243,8 @@ class TransferHandler:
 
     def stop(self, stop_type: int):
         #Values of stop_type:
-        #1 - Wait until the current chunk download ended and appended
-        #2 - Cancel downloading, will still wait for appending to finish
+        #1 - Wait until the current chunk transfer ended and appended
+        #2 - Cancel transfer, will still wait for appending to finish
         if not stop_type in [1, 2]:
             raise IndexError("stop_type should be 1 or 2.")
         if self.now_transmitting == 1 and stop_type == 1:

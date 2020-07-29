@@ -42,11 +42,13 @@ class SessionsHandler:
             ) # initialize all sessions that will be used
 
 
-    def __useSession(self, sFile: str = None): # Gets the first available session or the given one
+    def __useSession(self, sFile: str = None):
+        # Gets the first available session or the given one
         if not self.freeSessions:
             raise IndexError("No free sessions.")
 
-        if sFile: # don't remove session because it was already removed in resumeHandler
+        if sFile:
+            # don't remove session because it was already removed in resumeHandler
             return sFile
 
         # get available session
