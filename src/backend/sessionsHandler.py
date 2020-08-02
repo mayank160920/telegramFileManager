@@ -90,7 +90,7 @@ class SessionsHandler:
 
         elif selected == 2: # Ignore for now
             self.resumeData[sFile]['handled'] = 2
-            self.freeSessions.remove(sFile)	# prevent using this session for transfer
+            self.freeSessions.remove(sFile) # prevent using this session for transfer
 
         elif selected == 3: # delete the resume file
             if self.resumeData[sFile]['type'] == 'upload':
@@ -127,8 +127,6 @@ class SessionsHandler:
 
     def _upload(self, fileData: dict, sFile: str = None):
         sFile = self.__useSession(sFile) # Use a free session
-        if self.resumeData[sFile] and self.resumeData[sFile]['handled'] in [0, 2]:
-            raise ValueError("Resume sessions not handled, refusing to transfer.")
 
         self.transferInfo[sFile]['rPath'] = fileData['rPath']
         self.transferInfo[sFile]['progress'] = 0
@@ -139,6 +137,9 @@ class SessionsHandler:
             fileData['index'] = self.fileIO.loadIndexData(sFile)
 
         finalData = self.tHandler[sFile].uploadFiles(fileData)
+
+        self.transferInfo[sFile]['type'] = None # not transferring anything
+        self.__freeSession(sFile)
 
         if finalData: # Finished uploading
             if len(finalData['fileData']['fileID']) > 1: # not single chunk
@@ -155,16 +156,11 @@ class SessionsHandler:
             self.fileIO.updateDatabase(self.fileDatabase)
 
         else:
-            self.resumeData[sFile]['handled'] = 0
-
-        self.transferInfo[sFile]['type'] = None # not transferring anything
-        self.__freeSession(sFile)
+            self.resumeHandler(sFile, 2)
 
 
     def _download(self, fileData: dict, sFile: str = None):
         sFile = self.__useSession(sFile) # Use a free session
-        if self.resumeData[sFile] and self.resumeData[sFile]['handled'] in [0, 2]:
-            raise ValueError("Resume sessions not handled, refusing to transfer.")
 
         self.transferInfo[sFile]['rPath'] = fileData['rPath']
         self.transferInfo[sFile]['progress'] = 0
@@ -173,16 +169,16 @@ class SessionsHandler:
 
         finalData = self.tHandler[sFile].downloadFiles(fileData)
 
+        self.transferInfo[sFile]['type'] = None
+        self.__freeSession(sFile)
+
         if finalData: # finished downloading
             if len(fileData['fileID']) > 1:
                 self.fileIO.delResumeData(sFile)
                 self.resumeData[sFile] = {}
 
         else:
-            self.resumeData[sFile]['handled'] = 0
-
-        self.transferInfo[sFile]['type'] = None
-        self.__freeSession(sFile)
+            self.resumeHandler(sFile, 2)
 
         return finalData
 
@@ -203,8 +199,6 @@ class SessionsHandler:
 
         if self.tHandler[sFile].should_stop:
             raise ValueError("Transfer already cancelled.")
-
-        self.resumeData[sFile]['handled'] = 0
 
         self.tHandler[sFile].stop(1)
 

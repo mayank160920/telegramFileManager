@@ -141,8 +141,8 @@ class UserInterface:
     def resumeHandler(self):
         inDict = {}
         for sFile, info in self.sHandler.resumeData.items():
-            if info and info['handled'] in [0, 2]:
-                # has resume data that wasn't handled
+            if info and info['handled'] == 2:
+                # has resume data that was ignored for later
                 inDict[sFile] = "Session {}, '{}' - {}:".format(sFile,
                     '/'.join(info['rPath']), misc.bytesConvert(info['size'])
                 )
@@ -212,7 +212,8 @@ class UserInterface:
                                         'fileID'     : [],
                                         'index'      : 0, # managed by transferHandler
                                         'chunkIndex' : 0,
-                                        'type'       : 'upload'})
+                                        'type'       : 'upload',
+                                        'handled'    : 0})
 
 
     def downloadHandler(self):
@@ -278,7 +279,8 @@ class UserInterface:
                                             'fileID'  : inData['selected']['fileID'],
                                             'IDindex' : 0,
                                             'size'    : inData['selected']['size'],
-                                            'type'    : 'download'})
+                                            'type'    : 'download',
+                                            'handled' : 0})
 
 
     def main(self):
@@ -339,7 +341,11 @@ class UserInterface:
                 ch = self.scr.getch()
                 if ch == curses.KEY_UP and self.selected > 1:
                     self.selected -= 1
-                elif ch == curses.KEY_DOWN and self.selected < self.sHandler.max_sessions - (len(self.sHandler.freeSessions) + ignoredTransfers):
+                elif (
+                      ch == curses.KEY_DOWN and
+                      (self.selected < self.sHandler.max_sessions -
+                          (len(self.sHandler.freeSessions) + ignoredTransfers))
+                     ):
                     self.selected += 1
 
                 elif ch == ord('q'):
@@ -351,8 +357,11 @@ class UserInterface:
                         break
 
                 # Go to the last transfer if the transfer that was selected finished
-                if self.selected > self.sHandler.max_sessions - len(self.sHandler.freeSessions):
-                    self.selected = self.sHandler.max_sessions - len(self.sHandler.freeSessions)
+                if (self.selected > self.sHandler.max_sessions -
+                        (len(self.sHandler.freeSessions) + ignoredTransfers)):
+
+                    self.selected = (self.sHandler.max_sessions -
+                        (len(self.sHandler.freeSessions) + ignoredTransfers))
 
         except KeyboardInterrupt: # dont crash the terminal when quitting with Ctrl+C
             pass
