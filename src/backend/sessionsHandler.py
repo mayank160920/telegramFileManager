@@ -89,16 +89,20 @@ class SessionsHandler:
             self.transferInThread(self.resumeData[sFile], sFile)
 
         elif selected == 2: # Ignore for now
-            self.resumeData[sFile]['handled'] = 2
-            self.freeSessions.remove(sFile) # prevent using this session for transfer
+            if self.resumeData[sFile]['handled'] != 2:
+                self.resumeData[sFile]['handled'] = 2
+                self.freeSessions.remove(sFile)
+                # prevent using this session for transfer
 
         elif selected == 3: # delete the resume file
             if self.resumeData[sFile]['type'] == 'upload':
                 self.cleanTg(self.resumeData[sFile]['fileID'])
 
+            if self.resumeData[sFile]['handled'] == 2:
+                self.__freeSession(sFile)
+
             self.resumeData[sFile] = {} # not possible to resume later
             self.fileIO.delResumeData(sFile)
-            self.__freeSession(sFile)
 
 
     def cleanTg(self, IDList: list = None):
