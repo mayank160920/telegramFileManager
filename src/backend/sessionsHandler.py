@@ -98,6 +98,7 @@ class SessionsHandler:
 
             self.resumeData[sFile] = {} # not possible to resume later
             self.fileIO.delResumeData(sFile)
+            self.__freeSession(sFile)
 
 
     def cleanTg(self, IDList: list = None):
