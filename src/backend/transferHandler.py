@@ -64,9 +64,11 @@ class TransferHandler:
         self.now_transmitting = 0 # no, single chunk, multi chunk (0-2)
         self.should_stop = 0
 
+        self.chunk_size = 2000*1024*1024
+
 
     def uploadFiles(self, fileData: dict):
-        if fileData['size'] <= 2000*1024*1024: # less than 2000M don't split file
+        if fileData['size'] <= self.chunk_size: # don't split file
             # Single chunk upload doesn't call data_fun
             copied_file_path = path.join(self.tmp_path, "tfilemgr",
                 "{}_{}".format(self.s_file, fileData['index']))
@@ -97,7 +99,7 @@ class TransferHandler:
                     'index'    : fileData['index']+1}
 
         # else file should be split
-        tot_chunks = (fileData['size'] // (2000*1024*1024)) + 1 # used by progress fun
+        tot_chunks = (fileData['size'] // self.chunk_size) + 1 # used by progress fun
 
         self.now_transmitting = 2
         while True: # not end of file
@@ -108,7 +110,7 @@ class TransferHandler:
                 fileData['chunkIndex'],
                 fileData['path'].encode('ascii'),
                 copied_file_path.encode('ascii'),
-                2000*1024, 1024
+                self.chunk_size/1024, 1024
             )
 
             msg_obj = self.telegram.send_document(
@@ -196,7 +198,7 @@ class TransferHandler:
             self.extern.concatFiles(
                 tmp_file_path.encode('ascii'),
                 copied_file_path.encode('ascii'),
-                1000
+                1024
             )
 
             remove(tmp_file_path)

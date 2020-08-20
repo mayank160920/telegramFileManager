@@ -41,6 +41,8 @@ class SessionsHandler:
                     str(i), self.__saveProgress, self.__saveResumeData
             ) # initialize all sessions that will be used
 
+        self.chunkSize = self.tHandler['1'].chunk_size
+
 
     def __useSession(self, sFile: str = None):
         # Gets the first available session or the given one
