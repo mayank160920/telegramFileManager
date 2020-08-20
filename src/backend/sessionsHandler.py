@@ -81,16 +81,16 @@ class SessionsHandler:
             raise IndexError("sFile should be between 1 and {}.".format(self.max_sessions))
 
         if selected == 1: # Finish the transfer
-            if self.resumeData[sFile]['handled'] != 2:
-                self.freeSessions.remove(sFile) # if it was handled at startup as ignore
+            if self.resumeData[sFile]['handled'] != 1:
+                self.freeSessions.remove(sFile) # if it was handled as ignore
                                                 # the session was already removed
 
-            self.resumeData[sFile]['handled'] = 1
+            self.resumeData[sFile]['handled'] = 0
             self.transferInThread(self.resumeData[sFile], sFile)
 
         elif selected == 2: # Ignore for now
-            if self.resumeData[sFile]['handled'] != 2:
-                self.resumeData[sFile]['handled'] = 2
+            if self.resumeData[sFile]['handled'] != 1:
+                self.resumeData[sFile]['handled'] = 1
                 self.freeSessions.remove(sFile)
                 # prevent using this session for transfer
 
@@ -98,7 +98,7 @@ class SessionsHandler:
             if self.resumeData[sFile]['type'] == 'upload':
                 self.cleanTg(self.resumeData[sFile]['fileID'])
 
-            if self.resumeData[sFile]['handled'] == 2:
+            if self.resumeData[sFile]['handled'] == 1:
                 self.__freeSession(sFile)
 
             self.resumeData[sFile] = {} # not possible to resume later

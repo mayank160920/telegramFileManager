@@ -141,7 +141,7 @@ class UserInterface:
     def resumeHandler(self):
         inDict = {}
         for sFile, info in self.sHandler.resumeData.items():
-            if info and info['handled'] in [0, 2]:
+            if info and info['handled'] == 1:
                 # has resume data that was ignored for later
                 inDict[sFile] = "Session {}, '{}' - {}:".format(sFile,
                     '/'.join(info['rPath']), misc.bytesConvert(info['size'])
@@ -334,7 +334,7 @@ class UserInterface:
                 for i in range(1, self.sHandler.max_sessions+1):
                     if (
                         self.sHandler.resumeData[str(i)] and
-                        self.sHandler.resumeData[str(i)]['handled'] == 2
+                        self.sHandler.resumeData[str(i)]['handled'] == 1
                        ):
                         ignoredTransfers += 1
 
