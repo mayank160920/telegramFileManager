@@ -65,6 +65,7 @@ class TransferHandler:
         self.should_stop = 0
 
         self.chunk_size = 2000*1024*1024
+        self.mul_chunk_size = 2000*1024
 
 
     def uploadFiles(self, fileData: dict):
@@ -110,7 +111,7 @@ class TransferHandler:
                 fileData['chunkIndex'],
                 fileData['path'].encode('ascii'),
                 copied_file_path.encode('ascii'),
-                self.chunk_size/1024, 1024
+                self.mul_chunk_size, 1024
             )
 
             msg_obj = self.telegram.send_document(
