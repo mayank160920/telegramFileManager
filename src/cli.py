@@ -141,7 +141,7 @@ class UserInterface:
     def resumeHandler(self):
         inDict = {}
         for sFile, info in self.sHandler.resumeData.items():
-            if info and info['handled'] == 1:
+            if info:
                 # has resume data that was ignored for later
                 inDict[sFile] = "Session {}, '{}' - {}:".format(sFile,
                     '/'.join(info['rPath']), misc.bytesConvert(info['size'])
