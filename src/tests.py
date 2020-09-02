@@ -29,7 +29,7 @@ def printProgress(current, total, current_chunk, total_chunks, sFile):
     if resumeTest and toResume and prg == 50:
         print("\nTest Resume")
         toResume = False
-        tg.stop(resumeTest)
+        tg.stop(resumeTest, 1)
 
 
 def fileDataFun(fileData, sFile):
@@ -39,7 +39,7 @@ def fileDataFun(fileData, sFile):
 
     print(fileData)
 
-    if fileData['type'] == 1:
+    if fileData['type'] == 'upload':
         progressUpload = fileData.copy()
     else:
         progressDownload = fileData.copy()
@@ -65,10 +65,11 @@ if resumeTest:
     outData = tg.uploadFiles(progressUpload)
 
 downloadData = {'rPath'   : outData['fileData']['rPath'],
+                'dPath'   : '',
                 'fileID'  : outData['fileData']['fileID'],
                 'IDindex' : 0,
                 'size'    : outData['fileData']['size'],
-                'type'    : 2}
+                'type'    : 'download'}
 
 toResume = True
 print(outData)
