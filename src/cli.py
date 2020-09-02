@@ -331,8 +331,11 @@ class UserInterface:
                     self.notifBuf = ''
 
                 ignoredTransfers = 0
-                for sFile, info in self.sHandler.resumeData.items():
-                    if info:
+                for i in range(1, self.sHandler.max_sessions+1):
+                    if (
+                        self.sHandler.resumeData[str(i)] and
+                        self.sHandler.resumeData[str(i)]['handled'] == 1
+                       ):
                         ignoredTransfers += 1
 
                 ch = self.scr.getch()
