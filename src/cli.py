@@ -3,7 +3,7 @@ import misc
 
 from backend.sessionsHandler import SessionsHandler
 
-class UserInterface:
+class UserInterface(SessionsHandler):
     def __init__(self):
         self.notifBuf = ''
         self.selected = 0
@@ -15,10 +15,10 @@ class UserInterface:
         except ValueError:
             realChannelID = self.cfg['telegram']['channel_id']
 
-        self.sHandler = SessionsHandler(
-                realChannelID, self.cfg['telegram']['api_id'],
-                self.cfg['telegram']['api_hash'], self.cfg['paths']['data_path'],
-                self.cfg['paths']['tmp_path'], int(self.cfg['telegram']['max_sessions'])
+        super().__init__(
+            realChannelID, self.cfg['telegram']['api_id'],
+            self.cfg['telegram']['api_hash'], self.cfg['paths']['data_path'],
+            self.cfg['paths']['tmp_path'], int(self.cfg['telegram']['max_sessions'])
         )
 
         self.scr = curses.initscr()
@@ -138,9 +138,9 @@ class UserInterface:
                     'action' : action}
 
 
-    def resumeHandler(self):
+    def resumeHandlerUI(self):
         inDict = {}
-        for sFile, info in self.sHandler.resumeData.items():
+        for sFile, info in self.resumeData.items():
             if info:
                 # has resume data that was ignored for later
                 inDict[sFile] = "Session {}, '{}' - {}:".format(sFile,
@@ -161,7 +161,7 @@ class UserInterface:
                 except ValueError:
                     continue
 
-                self.sHandler.resumeHandler(sFile, intSelected)
+                self.resumeHandler(sFile, intSelected)
 
 
     def cancelHandler(self):
@@ -171,19 +171,19 @@ class UserInterface:
 
         # Only solution I found for cancelling the right transfer
         i = 0
-        for sFile, info in self.sHandler.transferInfo.items():
+        for sFile, info in self.transferInfo.items():
             if not info['type']: # empty
                 continue
             i += 1
             if i == self.selected:
-                if info['size'] <= self.sHandler.chunkSize: # no chunks
+                if info['size'] <= self.chunkSize: # no chunks
                     self.notifBuf = "Can't cancel single chunk transfers"
                     return
 
                 try:
                     if self._getInputs("Cancel transfer {}?".format('/'.join(info['rPath'])),
                             {'selected' : "Type 'yes' if you are sure:"})['selected'] == 'yes':
-                        self.sHandler.cancelTransfer(sFile)
+                        self.cancelTransfer(sFile)
                         self.notifBuf = "Transfer {} cancelled".format('/'.join(info['rPath']))
                 except ValueError:
                     self.notifBuf = "Transfer already cancelled."
@@ -192,7 +192,7 @@ class UserInterface:
 
 
     def uploadHandler(self):
-        if not self.sHandler.freeSessions:
+        if not self.freeSessions:
             self.notifBuf = 'All sessions are currently used.'
             return
 
@@ -206,7 +206,7 @@ class UserInterface:
             self.notifBuf = "There is no file with this path."
             return
 
-        self.sHandler.transferInThread({'rPath'      : inData['rPath'].split('/'),
+        self.transferInThread({'rPath'      : inData['rPath'].split('/'),
                                         'path'       : inData['path'],
                                         'size'       : os.path.getsize(inData['path']),
                                         'fileID'     : [],
@@ -217,14 +217,14 @@ class UserInterface:
 
 
     def downloadHandler(self):
-        if not self.sHandler.freeSessions:
+        if not self.freeSessions:
             self.notifBuf = 'All sessions are currently used.'
             return
 
         prompts = []
         totalSize = 0
         # Generate list dynamically
-        for i in self.sHandler.fileDatabase:
+        for i in self.fileDatabase:
             totalSize += i['size']
 
             prompts.append({'title'  : "{}  {}".format(
@@ -248,7 +248,7 @@ class UserInterface:
                 tmpData = {'rPath'  : inData['selected']['rPath'],
                            'fileID' : inData['selected']['fileID'],
                            'size'   : inData['selected']['size']}
-                self.sHandler.deleteInDatabase(tmpData)
+                self.deleteInDatabase(tmpData)
                 return
 
             if inData['action'] == 'rename':
@@ -262,7 +262,7 @@ class UserInterface:
                            'fileID' : inData['selected']['fileID'],
                            'size'   : inData['selected']['size']}
 
-                self.sHandler.renameInDatabase(tmpData, name.split('/'))
+                self.renameInDatabase(tmpData, name.split('/'))
                 return
 
             # else download
@@ -274,7 +274,7 @@ class UserInterface:
                 self.notifBuf = "Specified path does not exist."
                 return
 
-            self.sHandler.transferInThread({'rPath'   : inData['selected']['rPath'],
+            self.transferInThread({'rPath'   : inData['selected']['rPath'],
                                             'dPath'   : dPath,
                                             'fileID'  : inData['selected']['fileID'],
                                             'IDindex' : 0,
@@ -288,10 +288,10 @@ class UserInterface:
         optionDict = {'upload' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['upload']), 'function' : self.uploadHandler},
                       'download' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['download']), 'function' : self.downloadHandler},
                       'cancel' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['cancel']), 'function' : self.cancelHandler},
-                      'resume' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['resume']), 'function' : self.resumeHandler}}
+                      'resume' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['resume']), 'function' : self.resumeHandlerUI}}
 
         try:
-            self.resumeHandler()
+            self.resumeHandlerUI()
 
             while True:
                 self.scr.erase()
@@ -304,7 +304,7 @@ class UserInterface:
                         break
 
                 usedSessionStr = "[ {} of {} ]".format(
-                    self.sHandler.max_sessions - len(self.sHandler.freeSessions), self.sHandler.max_sessions)
+                    self.max_sessions - len(self.freeSessions), self.max_sessions)
 
                 # program name
                 self.scr.addstr(0, max(round((tlX-len(NAME))/2), 0), NAME)
@@ -317,7 +317,7 @@ class UserInterface:
                     for j in range((self.selected-1)*4+i, (self.selected-1)*4+i+3):
                         self.scr.addch(j, 0, '*')
 
-                for sFile, info in self.sHandler.transferInfo.items():
+                for sFile, info in self.transferInfo.items():
                     if not info['type']: # empty
                         continue
 
@@ -331,10 +331,10 @@ class UserInterface:
                     self.notifBuf = ''
 
                 ignoredTransfers = 0
-                for i in range(1, self.sHandler.max_sessions+1):
+                for i in range(1, self.max_sessions+1):
                     if (
-                        self.sHandler.resumeData[str(i)] and
-                        self.sHandler.resumeData[str(i)]['handled'] == 1
+                        self.resumeData[str(i)] and
+                        self.resumeData[str(i)]['handled'] == 1
                        ):
                         ignoredTransfers += 1
 
@@ -343,8 +343,8 @@ class UserInterface:
                     self.selected -= 1
                 elif (
                       ch == curses.KEY_DOWN and
-                      (self.selected < self.sHandler.max_sessions -
-                          (len(self.sHandler.freeSessions) + ignoredTransfers))
+                      (self.selected < self.max_sessions -
+                          (len(self.freeSessions) + ignoredTransfers))
                      ):
                     self.selected += 1
 
@@ -357,18 +357,18 @@ class UserInterface:
                         break
 
                 # Go to the last transfer if the transfer that was selected finished
-                if (self.selected > self.sHandler.max_sessions -
-                        (len(self.sHandler.freeSessions) + ignoredTransfers)):
+                if (self.selected > self.max_sessions -
+                        (len(self.freeSessions) + ignoredTransfers)):
 
-                    self.selected = (self.sHandler.max_sessions -
-                        (len(self.sHandler.freeSessions) + ignoredTransfers))
+                    self.selected = (self.max_sessions -
+                        (len(self.freeSessions) + ignoredTransfers))
 
         except KeyboardInterrupt: # dont crash the terminal when quitting with Ctrl+C
             pass
 
         # exit
         curses.endwin()
-        self.sHandler.endSessions() # Must call to exit the program
+        self.endSessions() # Must call to exit the program
 
 
 if __name__ == "__main__":
