@@ -18,7 +18,7 @@ benefit)
 ```pip3 install -r requirements.txt -U```
 
 ### Or if you want to install them manually:
-* Pyrogram (pip3 install -U pyrogram)
+* Pyrogram (`pip3 install -U pyrogram==0.18.0`) (Newer versions don't work due to a bug on upstream)
 * TgCrypto (`pip3 install -U tgcrypto`) (Recommended: used by `pyrogram`)
 * PyInstaller (`pip3 install -U pyinstaller`) (Bundles the scripts into one executable)
 
