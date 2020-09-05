@@ -58,7 +58,7 @@ inputFileData = {'rPath'      : "temp/tfilemk_rand".split('/'),
                  'fileID'     : [],
                  'index'      : 1,
                  'chunkIndex' : 0,
-                 'type'       : 1}
+                 'type'       : 'upload'}
 
 outData = tg.uploadFiles(inputFileData)
 if resumeTest:
