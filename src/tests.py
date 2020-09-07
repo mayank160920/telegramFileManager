@@ -29,7 +29,7 @@ def printProgress(current, total, current_chunk, total_chunks, sFile):
     if resumeTest and toResume and prg == 50:
         print("\nTest Resume")
         toResume = False
-        tg.stop(resumeTest, 1)
+        tg.stop(resumeTest)
 
 
 def fileDataFun(fileData, sFile):
