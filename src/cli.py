@@ -1,6 +1,9 @@
-import curses
-import misc
+import urwid
+import os
+import weakref
+import asyncio
 
+import misc
 from backend.sessionsHandler import SessionsHandler
 
 class UserInterface(SessionsHandler):
@@ -21,15 +24,44 @@ class UserInterface(SessionsHandler):
             self.cfg['paths']['tmp_path'], int(self.cfg['telegram']['max_sessions'])
         )
 
-        self.scr = curses.initscr()
+        self.loop = asyncio.get_event_loop()
 
-        curses.noecho()
-        curses.cbreak()
-        curses.curs_set(False)
-        self.scr.keypad(True)
-        self.scr.nodelay(True)
-        self.scr.timeout(5000)
-        # waits for 5 seconds or a key to be pressed to refresh the screen
+        main_widget = build_widgets()
+
+        urwid_loop = urwid.MainLoop(
+            main_widget,
+            event_loop=urwid.AsyncioEventLoop(loop=self.loop),
+            unhandled_input=urwid_unhandled,
+        )
+        urwid_loop.run()
+
+
+    def build_widgets(self):
+        def update_progress(widget_ref):
+            widget = widget_ref()
+            if not widget:
+                # widget is dead; the main loop must've been destroyed
+                return
+
+            widget.set_text(progress_info)
+
+            # Schedule to update the clock again in one second
+            loop.call_later(1, update_progress, widget_ref)
+
+        progress = urwid.Text('')
+        update_progress(weakref.ref(progress))
+
+        return urwid.Filler(progress, 'top')
+
+
+    def unhandled(key):
+        optionDict = {'upload' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['upload']), 'function' : self.uploadHandler},
+                      'download' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['download']), 'function' : self.downloadHandler},
+                      'cancel' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['cancel']), 'function' : self.cancelHandler},
+                      'resume' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['resume']), 'function' : self.resumeHandlerUI}}
+
+        if key == 'esc':
+            raise urwid.ExitMainLoop
 
 
     def _getInputs(self, title, prompts):
@@ -285,10 +317,6 @@ class UserInterface(SessionsHandler):
 
     def main(self):
         NAME = "Telegram File Manager"
-        optionDict = {'upload' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['upload']), 'function' : self.uploadHandler},
-                      'download' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['download']), 'function' : self.downloadHandler},
-                      'cancel' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['cancel']), 'function' : self.cancelHandler},
-                      'resume' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['resume']), 'function' : self.resumeHandlerUI}}
 
         try:
             self.resumeHandlerUI()
@@ -373,4 +401,3 @@ class UserInterface(SessionsHandler):
 
 if __name__ == "__main__":
     ui = UserInterface()
-    ui.main()

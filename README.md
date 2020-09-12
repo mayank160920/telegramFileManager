@@ -1,14 +1,15 @@
 # telegramFileManager
 File Manager using [pyrogram](https://github.com/pyrogram/pyrogram) library that
 uses Telegram servers for storing
-files. This program has an advanced ncurses interface, ability to transfer files
+files. This program has an advanced command-line interface, ability to transfer files
 larger than 2G and more!
+## This branch is still a WIP, use the master branch instead
 
 ## Features
 * Ability to show downloading and uploading progress
 * Ability to transfer files larger than 2G (telegram's limit)
 * Intuitive and fast scrolling when selecting uploaded files
-* Fast downloading and uploading of files (10Mbit UP | 15Mbit DOWN)
+* Fast downloading and uploading of files (40Mbit UP | 30Mbit DOWN)
 * Ability to upload/download multiple files at once (after 4 there if no speed
 benefit)
 * Canceling and resuming file transfers
@@ -18,7 +19,7 @@ benefit)
 ```pip3 install -r requirements.txt -U```
 
 ### Or if you want to install them manually:
-* Pyrogram (`pip3 install -U pyrogram==0.18.0`) (Newer versions don't work due to a bug on upstream)
+* Pyrogram (`pip3 install -U https://github.com/pyrogram/pyrogram/archive/master.zip`) (Latest stable release has a bug with downloads)
 * TgCrypto (`pip3 install -U tgcrypto`) (Recommended: used by `pyrogram`)
 * PyInstaller (`pip3 install -U pyinstaller`) (Bundles the scripts into one executable)
 
