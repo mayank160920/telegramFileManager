@@ -46,7 +46,7 @@ class UserInterface():
         progress = urwid.Text('')
         div = urwid.Divider()
 
-        pile = urwid.Pile([title, div, used_sessions, div, progress])
+        pile = urwid.Pile([title, used_sessions, div, progress])
 
         update_info(weakref.ref(used_sessions), weakref.ref(progress))
 
