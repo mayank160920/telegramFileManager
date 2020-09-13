@@ -9,6 +9,7 @@ from backend.sessionsHandler import SessionsHandler
 class UserInterface():
     def __init__(self):
         self.cfg = misc.loadConfig()
+        self.progress_info = "1"
 
         try:
             realChannelID = int(self.cfg['telegram']['channel_id'])
@@ -25,21 +26,31 @@ class UserInterface():
 
 
     def build_main_widgets(self):
-        def update_progress(widget_ref):
-            widget = widget_ref()
-            if not widget:
-                # widget is dead; the main loop must've been destroyed
+        def update_info(used_sessions_ref, progress_ref):
+            local_progress = progress_ref()
+            local_used_sessions = used_sessions_ref()
+
+            if not local_progress or not local_used_sessions:
+                # widget is dead, the main loop must've been destroyed
                 return
 
-            widget.set_text(progress_info)
+            local_progress.set_text(self.progress_info)
+            local_used_sessions.set_text("[ {} of {} ]".format(
+                1, 4))
 
             # Schedule to update the clock again in one second
-            loop.call_later(1, update_progress, widget_ref)
+            self.loop.call_later(5, update_info, used_sessions_ref, progress_ref)
 
         title = urwid.Text("Telegram File Manager", align='center')
-        #update_progress(weakref.ref(progress))
+        used_sessions = urwid.Text('', align='right')
+        progress = urwid.Text('')
+        div = urwid.Divider()
 
-        return urwid.Filler(title, 'top')
+        pile = urwid.Pile([title, div, used_sessions, div, progress])
+
+        update_info(weakref.ref(used_sessions), weakref.ref(progress))
+
+        return urwid.Filler(pile, 'top')
 
 
     def unhandled_keys(self, key):
