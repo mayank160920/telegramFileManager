@@ -25,16 +25,10 @@ from pyrogram import Client
 from shutil import copyfile
 from os import remove, path
 import sys
-from typing import Union
 
 class TransferHandler:
     def __init__(self,
-                 telegram_channel_id: Union[int, str],
-                 api_id: int,
-                 api_hash: str,
-                 data_path: str,
-                 tmp_path: str,
-                 s_file: str,
+                 config: dict,
                  progress_fun: callable, # Pointer to progress function
                  data_fun: callable, # Called for multi chunk transfers
                  local_library: bool = True): # Where to search for library

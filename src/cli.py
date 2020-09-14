@@ -3,24 +3,18 @@ import os
 import weakref
 import asyncio
 
-import misc
-from backend.sessionsHandler import SessionsHandler
+from .backend.sessionsHandler import SessionsHandler
 
-class UserInterface():
+class UserInterface(SessionsHandler):
     def __init__(self):
-        self.cfg = misc.loadConfig()
+        super().__init__()
+
         self.progress_info = "1"
 
         try:
             realChannelID = int(self.cfg['telegram']['channel_id'])
         except ValueError:
             realChannelID = self.cfg['telegram']['channel_id']
-
-        #super().__init__(
-        #    realChannelID, self.cfg['telegram']['api_id'],
-        #    self.cfg['telegram']['api_hash'], self.cfg['paths']['data_path'],
-        #    self.cfg['paths']['tmp_path'], int(self.cfg['telegram']['max_sessions'])
-        #)
 
         self.loop = asyncio.get_event_loop()
 

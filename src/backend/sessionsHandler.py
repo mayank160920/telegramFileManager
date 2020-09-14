@@ -1,34 +1,30 @@
 '''
-Extends transferHandler by managing the database and implementing multithreading
+Extends transferHandler by managing the database and adding support for multiple sessions
 '''
+
+from operator import itemgetter
+import asyncio
 
 from .transferHandler import TransferHandler
 from .fileIO import FileIO
-import threading
-from operator import itemgetter
-from typing import Union
 
 class SessionsHandler:
-    def __init__(self,
-                 telegram_channel_id: Union[int, str],
-                 api_id: int,
-                 api_hash: str,
-                 data_path: str,
-                 tmp_path: str,
-                 max_sessions: int):
+    def __init__(self):
+        self.cfg = misc.loadConfig()
 
-        self.api_id = api_id
-        self.api_hash = api_hash
-        self.data_path = data_path
-        self.max_sessions = max_sessions
-        self.fileIO = FileIO(data_path, tmp_path, max_sessions)
+        self.fileIO = FileIO(
+            self.cfg['paths']['data_path'],
+            self.cfg['paths']['tmp_path'],
+            int(self.cfg['telegram']['max_sessions']
+        )
+
         self.tHandler = {}
         self.freeSessions = []
         self.transferInfo = {}
         self.fileDatabase = self.fileIO.loadDatabase()
         self.resumeData = self.fileIO.loadResumeData()
 
-        for i in range(1, max_sessions+1):
+        for i in range(1, int(self.cfg['telegram']['max_sessions']+1)):
             self.freeSessions.append(str(i)) # all sessions are free by default
             self.transferInfo[str(i)] = {}
             self.transferInfo[str(i)]['rPath'] = ''
@@ -37,14 +33,13 @@ class SessionsHandler:
             self.transferInfo[str(i)]['type'] = None
 
             self.tHandler[str(i)] = TransferHandler(
-                    telegram_channel_id, api_id, api_hash, data_path, tmp_path,
-                    str(i), self.__saveProgress, self.__saveResumeData
+                self.cfg, str(i), self.__saveProgress, self.__saveResumeData
             ) # initialize all sessions that will be used
 
         self.chunkSize = self.tHandler['1'].chunk_size
 
 
-    def __useSession(self, sFile: str = None):
+    def _useSession(self, sFile: str = None):
         # Gets the first available session or the given one
         if sFile:
             # don't remove session because it was already removed in resumeHandler
@@ -59,7 +54,7 @@ class SessionsHandler:
         return retSession
 
 
-    def __freeSession(self, sFile: str):
+    def _freeSession(self, sFile: str):
         if not int(sFile) in range(1, self.max_sessions+1):
             raise IndexError("sFile should be between 1 and {}.".format(self.max_sessions))
         if sFile in self.freeSessions:
@@ -68,12 +63,12 @@ class SessionsHandler:
         self.freeSessions.append(sFile)
 
 
-    def __saveProgress(self, current, total, current_chunk, total_chunks, sFile):
+    def _saveProgress(self, current, total, current_chunk, total_chunks, sFile):
         prg = int(((current/total/total_chunks)+(current_chunk/total_chunks))*100)
         self.transferInfo[sFile]['progress'] = prg
 
 
-    def __saveResumeData(self, fileData: list, sFile: str):
+    def _saveResumeData(self, fileData: list, sFile: str):
         self.resumeData[sFile] = fileData
         self.fileIO.saveResumeData(fileData, sFile)
 
@@ -132,8 +127,8 @@ class SessionsHandler:
         self.fileIO.updateDatabase(self.fileDatabase)
 
 
-    def _upload(self, fileData: dict, sFile: str = None):
-        sFile = self.__useSession(sFile) # Use a free session
+    async def upload(self, fileData: dict, sFile: str = None):
+        sFile = self._useSession(sFile) # Use a free session
 
         self.transferInfo[sFile]['rPath'] = fileData['rPath']
         self.transferInfo[sFile]['progress'] = 0
@@ -143,7 +138,7 @@ class SessionsHandler:
         if not fileData['index']: # not resuming
             fileData['index'] = self.fileIO.loadIndexData(sFile)
 
-        finalData = self.tHandler[sFile].uploadFiles(fileData)
+        finalData = await self.tHandler[sFile].uploadFiles(fileData)
 
         self.transferInfo[sFile]['type'] = None # not transferring anything
         self.__freeSession(sFile)
@@ -166,15 +161,15 @@ class SessionsHandler:
             self.resumeHandler(sFile, 2)
 
 
-    def _download(self, fileData: dict, sFile: str = None):
-        sFile = self.__useSession(sFile) # Use a free session
+    async def download(self, fileData: dict, sFile: str = None):
+        sFile = self._useSession(sFile) # Use a free session
 
         self.transferInfo[sFile]['rPath'] = fileData['rPath']
         self.transferInfo[sFile]['progress'] = 0
         self.transferInfo[sFile]['size'] = fileData['size']
         self.transferInfo[sFile]['type'] = 'download'
 
-        finalData = self.tHandler[sFile].downloadFiles(fileData)
+        finalData = await self.tHandler[sFile].downloadFiles(fileData)
 
         self.transferInfo[sFile]['type'] = None
         self.__freeSession(sFile)
@@ -188,16 +183,6 @@ class SessionsHandler:
             self.resumeHandler(sFile, 2)
 
         return finalData
-
-
-    def transferInThread(self, fileData: dict, sFile: str = None):
-        if fileData['type'] == 'upload':
-            threadTarget = self._upload
-        elif fileData['type'] == 'download':
-            threadTarget = self._download
-
-        transferJob = threading.Thread(target=threadTarget, args=(fileData,sFile,), daemon=True)
-        transferJob.start()
 
 
     def cancelTransfer(self, sFile: str):
