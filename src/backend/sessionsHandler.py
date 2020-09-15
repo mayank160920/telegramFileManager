@@ -5,8 +5,9 @@ Extends transferHandler by managing the database and adding support for multiple
 from operator import itemgetter
 import asyncio
 
-from .transferHandler import TransferHandler
-from .fileIO import FileIO
+from backend.transferHandler import TransferHandler
+from backend.fileIO import FileIO
+from backend import misc
 
 class SessionsHandler:
     def __init__(self):
@@ -15,7 +16,7 @@ class SessionsHandler:
         self.fileIO = FileIO(
             self.cfg['paths']['data_path'],
             self.cfg['paths']['tmp_path'],
-            int(self.cfg['telegram']['max_sessions']
+            int(self.cfg['telegram']['max_sessions'])
         )
 
         self.tHandler = {}
@@ -24,7 +25,7 @@ class SessionsHandler:
         self.fileDatabase = self.fileIO.loadDatabase()
         self.resumeData = self.fileIO.loadResumeData()
 
-        for i in range(1, int(self.cfg['telegram']['max_sessions']+1)):
+        for i in range(1, int(self.cfg['telegram']['max_sessions'])+1):
             self.freeSessions.append(str(i)) # all sessions are free by default
             self.transferInfo[str(i)] = {}
             self.transferInfo[str(i)]['rPath'] = ''
@@ -33,7 +34,7 @@ class SessionsHandler:
             self.transferInfo[str(i)]['type'] = None
 
             self.tHandler[str(i)] = TransferHandler(
-                self.cfg, str(i), self.__saveProgress, self.__saveResumeData
+                self.cfg, str(i), self._saveProgress, self._saveResumeData
             ) # initialize all sessions that will be used
 
         self.chunkSize = self.tHandler['1'].chunk_size
@@ -96,14 +97,14 @@ class SessionsHandler:
                 self.cleanTg(self.resumeData[sFile]['fileID'])
 
             if self.resumeData[sFile]['handled'] == 1:
-                self.__freeSession(sFile)
+                self._freeSession(sFile)
 
             self.resumeData[sFile] = {} # not possible to resume later
             self.fileIO.delResumeData(sFile)
 
 
     def cleanTg(self, IDList: list = None):
-        sFile = self.__useSession()
+        sFile = self._useSession()
         mode = 2
 
         if not IDList:
@@ -113,7 +114,7 @@ class SessionsHandler:
                     IDlist.append(j)
 
         self.tHandler[sFile].deleteUseless(IDList, mode)
-        self.__freeSession(sFile)
+        self._freeSession(sFile)
 
 
     def deleteInDatabase(self, fileData: dict):
@@ -141,7 +142,7 @@ class SessionsHandler:
         finalData = await self.tHandler[sFile].uploadFiles(fileData)
 
         self.transferInfo[sFile]['type'] = None # not transferring anything
-        self.__freeSession(sFile)
+        self._freeSession(sFile)
 
         if finalData: # Finished uploading
             if len(finalData['fileData']['fileID']) > 1: # not single chunk
@@ -172,7 +173,7 @@ class SessionsHandler:
         finalData = await self.tHandler[sFile].downloadFiles(fileData)
 
         self.transferInfo[sFile]['type'] = None
-        self.__freeSession(sFile)
+        self._freeSession(sFile)
 
         if finalData: # finished downloading
             if len(fileData['fileID']) > 1:

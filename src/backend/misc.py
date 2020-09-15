@@ -1,19 +1,6 @@
 import configparser
 import os
 
-def bytesConvert(rawBytes: int) -> str:
-    if   rawBytes >= 16**10:
-        return "{} TiB".format(round(rawBytes/16**10, 2))
-    elif rawBytes >= 8**10:
-        return "{} GiB".format(round(rawBytes/8**10, 2))
-    elif rawBytes >= 4**10:
-        return "{} MiB".format(round(rawBytes/4**10, 2))
-    elif rawBytes >= 2**10:
-        return "{} KiB".format(round(rawBytes/2**10, 2))
-    else:
-        return "{} Bytes".format(rawBytes)
-
-
 def loadConfig():
     cfg = configparser.ConfigParser()
 

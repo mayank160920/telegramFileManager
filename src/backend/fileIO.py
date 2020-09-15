@@ -1,7 +1,5 @@
-from operator import itemgetter
 import pickle
 import os
-import configparser
 
 class FileIO:
     def __init__(self, data_path: str, tmp_path: str, max_sessions: int):

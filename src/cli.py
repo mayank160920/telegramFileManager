@@ -3,7 +3,20 @@ import os
 import weakref
 import asyncio
 
-from .backend.sessionsHandler import SessionsHandler
+from backend.sessionsHandler import SessionsHandler
+
+def bytesConvert(rawBytes: int) -> str:
+    if   rawBytes >= 16**10:
+        return "{} TiB".format(round(rawBytes/16**10, 2))
+    elif rawBytes >= 8**10:
+        return "{} GiB".format(round(rawBytes/8**10, 2))
+    elif rawBytes >= 4**10:
+        return "{} MiB".format(round(rawBytes/4**10, 2))
+    elif rawBytes >= 2**10:
+        return "{} KiB".format(round(rawBytes/2**10, 2))
+    else:
+        return "{} Bytes".format(rawBytes)
+
 
 class UserInterface(SessionsHandler):
     def __init__(self):
@@ -20,12 +33,14 @@ class UserInterface(SessionsHandler):
 
         self.main_widget = self.build_main_widgets()
 
-        urwid_loop = urwid.MainLoop(
+        self.urwid_loop = urwid.MainLoop(
             self.main_widget,
-            event_loop=urwid.AsyncioEventLoop(loop=self.loop),
-            unhandled_input=self.unhandled_keys
+            handle_mouse=False,
+            event_loop=urwid.AsyncioEventLoop(loop=self.loop)
         )
-        urwid_loop.run()
+        self.urwid_loop.run()
+
+        self.urwid_loop.unhandled_input = self.handle_keys_main
 
 
     def build_main_widgets(self):
@@ -43,7 +58,7 @@ class UserInterface(SessionsHandler):
                 (urwid.Text("faawe"), local_transfer_info.options('pack', None))]
 
             # Schedule to update the clock again in one second
-            self.loop.call_later(5, update_info, used_sessions_ref, transfer_info_ref)
+            self.loop.call_later(1, update_info, used_sessions_ref, transfer_info_ref)
 
         title = urwid.Text("Telegram File Manager", align='center')
         used_sessions = urwid.Text('', align='right')
@@ -57,14 +72,14 @@ class UserInterface(SessionsHandler):
         return urwid.Filler(pile, 'top')
 
 
-    def unhandled_keys(self, key):
-        #optionList = [{'keybind' : self.cfg['keybinds']['upload'], 'function' : self.uploadHandler},
-        #              {'keybind' : self.cfg['keybinds']['download'], 'function' : self.downloadHandler},
-        #              {'keybind' : self.cfg['keybinds']['cancel'], 'function' : self.cancelHandler},
-        #              {'keybind' : self.cfg['keybinds']['resume'], 'function' : self.resumeHandlerUI}]
+    def handle_keys_main(self, key):
+        optionList = [{'keybind' : self.cfg['keybinds']['upload'], 'function' : self.uploadHandler},
+                      {'keybind' : self.cfg['keybinds']['download'], 'function' : self.downloadHandler},
+                      {'keybind' : self.cfg['keybinds']['cancel'], 'function' : self.cancelHandler},
+                      {'keybind' : self.cfg['keybinds']['resume'], 'function' : self.resumeHandlerUI}]
 
         if key == 'esc':
-            #self.endSessions() # Must call to exit the program
+            self.endSessions() # Must call to exit the program
             raise urwid.ExitMainLoop
 
 
