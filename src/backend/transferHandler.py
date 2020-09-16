@@ -22,6 +22,8 @@ then the original file will be replaced. (If the original has not been moved)
 
 from ctypes import *
 from pyrogram import Client
+import threading
+import asyncio
 from shutil import copyfile
 from os import remove, path
 import sys
@@ -65,6 +67,22 @@ class TransferHandler:
         # So that if we are missing any sessions it will prompt for login
         # Before starting the UI
         self.telegram.start()
+
+    async def extern_concatFiles(self,
+                                 filePath: str,
+                                 outFileName: str):
+
+        threadJob = threading.Thread(target=self.extern.concatFiles,
+                                     args=(filePath.encode('ascii'),
+                                           outFileName.encode('ascii'),
+                                           1024,))
+        threadJob.start()
+
+        while True:
+            await asyncio.sleep(1)
+            if not threadJob.isAlive():
+                break
+
 
 
     def uploadFiles(self, fileData: dict):
