@@ -14,8 +14,8 @@ def loadConfig():
         cfg['telegram']['channel_id'] = 'me'
         cfg['telegram']['max_sessions'] = '4'
         cfg['paths'] = {}
-        cfg['paths']['data_path'] = os.expanduser("~/tgFileManager")
-        cfg['paths']['tmp_path'] = os.expanduser("~/.tmp/tgFileManager")
+        cfg['paths']['data_path'] = os.path.expanduser("~/tgFileManager")
+        cfg['paths']['tmp_path'] = os.path.expanduser("~/.tmp/tgFileManager")
         cfg['keybinds'] = {}
         cfg['keybinds']['upload'] = 'u'
         cfg['keybinds']['download'] = 'd'
