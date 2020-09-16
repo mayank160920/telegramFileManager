@@ -34,7 +34,7 @@ class SessionsHandler:
             self.transferInfo[str(i)]['type'] = None
 
             self.tHandler[str(i)] = TransferHandler(
-                self.cfg, str(i), self._saveProgress, self._saveResumeData
+                self.cfg, str(i), self._saveProgress, self._saveResumeData, False
             ) # initialize all sessions that will be used
 
         self.chunkSize = self.tHandler['1'].chunk_size

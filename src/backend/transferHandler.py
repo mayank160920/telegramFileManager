@@ -29,6 +29,7 @@ import sys
 class TransferHandler:
     def __init__(self,
                  config: dict,
+                 s_file: str,
                  progress_fun: callable, # Pointer to progress function
                  data_fun: callable, # Called for multi chunk transfers
                  local_library: bool = True): # Where to search for library
@@ -49,9 +50,13 @@ class TransferHandler:
         # Before starting the UI
         self.telegram.start()
 
-        self.telegram_channel_id = telegram_channel_id
-        self.data_path = data_path
-        self.tmp_path = tmp_path
+        try:
+            self.telegram_channel_id = int(config['telegram']['channel_id'])
+        except ValueError:
+            self.telegram_channel_id = config['telegram']['channel_id']
+
+        self.data_path = config['paths']['data_path']
+        self.tmp_path = config['paths']['tmp_path']
         self.s_file = s_file # we need this for the naming when uploading
         self.progress_fun = progress_fun
         self.data_fun = data_fun

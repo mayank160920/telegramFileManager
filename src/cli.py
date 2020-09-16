@@ -24,11 +24,6 @@ class UserInterface(SessionsHandler):
 
         self.progress_info = "1"
 
-        try:
-            realChannelID = int(self.cfg['telegram']['channel_id'])
-        except ValueError:
-            realChannelID = self.cfg['telegram']['channel_id']
-
         self.loop = asyncio.get_event_loop()
 
         self.main_widget = self.build_main_widgets()

@@ -6,8 +6,8 @@
 from os import path
 import sys
 
-import .config as cfg
-from .backend.transferHandler import TransferHandler
+import config as cfg
+from backend.transferHandler import TransferHandler
 
 data_path = ".."
 tmp_path = path.join(path.expanduser('~'), '.tmp')
