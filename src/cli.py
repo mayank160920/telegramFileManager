@@ -73,6 +73,10 @@ class UserInterface(SessionsHandler):
         #              {'keybind' : self.cfg['keybinds']['resume'], 'function' : self.resumeHandlerUI}]
 
         if key == 'esc':
+            self.urwid_loop.unhandled_input = self.handle_keys_temp
+
+    def handle_keys_temp(self, key):
+        if key == 'd':
             self.endSessions() # Must call to exit the program
             raise urwid.ExitMainLoop
 
