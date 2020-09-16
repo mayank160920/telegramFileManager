@@ -12,11 +12,12 @@ from backend import misc
 class SessionsHandler:
     def __init__(self):
         self.cfg = misc.loadConfig()
+        self.max_sessions = int(self.cfg['telegram']['max_sessions'])
 
         self.fileIO = FileIO(
             self.cfg['paths']['data_path'],
             self.cfg['paths']['tmp_path'],
-            int(self.cfg['telegram']['max_sessions'])
+            self.max_sessions
         )
 
         self.tHandler = {}
@@ -25,7 +26,7 @@ class SessionsHandler:
         self.fileDatabase = self.fileIO.loadDatabase()
         self.resumeData = self.fileIO.loadResumeData()
 
-        for i in range(1, int(self.cfg['telegram']['max_sessions'])+1):
+        for i in range(1, self.max_sessions+1):
             self.freeSessions.append(str(i)) # all sessions are free by default
             self.transferInfo[str(i)] = {}
             self.transferInfo[str(i)]['rPath'] = ''

@@ -31,11 +31,10 @@ class UserInterface(SessionsHandler):
         self.urwid_loop = urwid.MainLoop(
             self.main_widget,
             handle_mouse=False,
+            unhandled_input=self.handle_keys_main,
             event_loop=urwid.AsyncioEventLoop(loop=self.loop)
         )
         self.urwid_loop.run()
-
-        self.urwid_loop.unhandled_input = self.handle_keys_main
 
 
     def build_main_widgets(self):
@@ -68,10 +67,10 @@ class UserInterface(SessionsHandler):
 
 
     def handle_keys_main(self, key):
-        optionList = [{'keybind' : self.cfg['keybinds']['upload'], 'function' : self.uploadHandler},
-                      {'keybind' : self.cfg['keybinds']['download'], 'function' : self.downloadHandler},
-                      {'keybind' : self.cfg['keybinds']['cancel'], 'function' : self.cancelHandler},
-                      {'keybind' : self.cfg['keybinds']['resume'], 'function' : self.resumeHandlerUI}]
+        #optionList = [{'keybind' : self.cfg['keybinds']['upload'], 'function' : self.uploadHandler},
+        #              {'keybind' : self.cfg['keybinds']['download'], 'function' : self.downloadHandler},
+        #              {'keybind' : self.cfg['keybinds']['cancel'], 'function' : self.cancelHandler},
+        #              {'keybind' : self.cfg['keybinds']['resume'], 'function' : self.resumeHandlerUI}]
 
         if key == 'esc':
             self.endSessions() # Must call to exit the program

@@ -43,13 +43,6 @@ class TransferHandler:
         self.extern.concatFiles.restype = c_char
         self.extern.concatFiles.argtypes = [c_char_p, c_char_p, c_size_t]
 
-        self.telegram = Client(path.join(data_path, "a{}".format(s_file)),
-                               api_id, api_hash)
-        # Connect to telegram servers when starting
-        # So that if we are missing any sessions it will prompt for login
-        # Before starting the UI
-        self.telegram.start()
-
         try:
             self.telegram_channel_id = int(config['telegram']['channel_id'])
         except ValueError:
@@ -65,6 +58,13 @@ class TransferHandler:
 
         self.chunk_size = 2000*1024*1024
         self.mul_chunk_size = 2000*1024
+
+        self.telegram = Client(path.join(self.data_path, "a{}".format(s_file)),
+                               config['telegram']['api_id'], config['telegram']['api_hash'])
+        # Connect to telegram servers when starting
+        # So that if we are missing any sessions it will prompt for login
+        # Before starting the UI
+        self.telegram.start()
 
 
     def uploadFiles(self, fileData: dict):
