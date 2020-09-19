@@ -59,7 +59,7 @@ class TransferHandler:
         self.should_stop = 0
 
         self.chunk_size = 2000*1024*1024
-        self.mul_chunk_size = 2000*1024
+        self.mul_chunk_size = self.chunk_size // 1024 
 
         self.telegram = Client(path.join(self.data_path, "a{}".format(s_file)),
                                config['telegram']['api_id'], config['telegram']['api_hash'])
@@ -84,54 +84,40 @@ class TransferHandler:
                 break
 
 
+    async def extern_splitFile(self,
+                               startIndex: int,
+                               filePath: str,
+                               outFileName: str):
+
+        threadJob = threading.Thread(target=self.extern.splitFile,
+                                     args=(startIndex,
+                                           filePath.encode('ascii'),
+                                           outFileName.encode('ascii'),
+                                           self.mul_chunk_size,
+                                           1024,))
+        threadJob.start()
+
+        while True:
+            await asyncio.sleep(1)
+            if not threadJob.isAlive():
+                break
+
 
     def uploadFiles(self, fileData: dict):
-        if fileData['size'] <= self.chunk_size: # don't split file
-            # Single chunk upload doesn't call data_fun
-            copied_file_path = path.join(self.tmp_path, "tfilemgr",
-                "{}_{}".format(self.s_file, fileData['index']))
-
-            copyfile(fileData['path'], copied_file_path)
-
-            self.now_transmitting = 1
-
-            msg_obj = self.telegram.send_document(
-                    self.telegram_channel_id, copied_file_path,
-                    progress=self.progress_fun,
-                    progress_args=(0, 1, self.s_file) # 0 out of 1 chunks
-                )
-
-            self.now_transmitting = 0
-
-            # Canceling with 1 makes no sense for single chunk transmission
-            if self.should_stop == 2:
-                self.should_stop = 0
-                return
-
-            remove(copied_file_path) # finished uploading, delete file
-
-            # return file information
-            return {'fileData' : {'rPath'  : fileData['rPath'],
-                                  'fileID' : [msg_obj.message_id],
-                                  'size'   : fileData['size']},
-                    'index'    : fileData['index']+1}
-
-        # else file should be split
         tot_chunks = (fileData['size'] // self.chunk_size) + 1 # used by progress fun
+        self.now_transmitting = 1 if fileData['size'] <= self.chunk_size else 2
 
-        self.now_transmitting = 2
         while True: # not end of file
             copied_file_path = path.join(self.tmp_path, "tfilemgr",
                 "{}_{}".format(self.s_file, fileData['index']))
 
-            fileData['chunkIndex'] = self.extern.splitFile(
+            fileData['chunkIndex'] = await self.extern_splitFile(
                 fileData['chunkIndex'],
                 fileData['path'].encode('ascii'),
-                copied_file_path.encode('ascii'),
-                self.mul_chunk_size, 1024
+                copied_file_path.encode('ascii')
             )
 
-            msg_obj = self.telegram.send_document(
+            msg_obj = await self.telegram.send_document(
                     self.telegram_channel_id,
                     copied_file_path,
                     progress=self.progress_fun,
@@ -142,6 +128,9 @@ class TransferHandler:
             remove(copied_file_path) # delete the chunk
 
             if self.should_stop == 2: # force stop
+                if fileData['size'] <= self.chunk_size:
+                    self.should_stop = 0
+                    return
                 break
 
             fileData['fileID'].append(msg_obj.message_id)
