@@ -119,27 +119,30 @@ class TransferHandler:
         self.now_transmitting = 1 if fileData['size'] <= self.chunk_size else 2
 
         while True: # not end of file
-            copied_file_path = path.join(self.tmp_path, "tfilemgr",
-                "{}_{}".format(self.s_file, fileData['index']))
+            if self.now_transmitting == 2:
+                copied_file_path = path.join(self.tmp_path, "tfilemgr",
+                    "{}_{}".format(self.s_file, fileData['index']))
 
-            fileData['chunkIndex'] = await self.extern_splitFile(
-                fileData['chunkIndex'],
-                fileData['path'].encode('ascii'),
-                copied_file_path.encode('ascii')
-            )
+                fileData['chunkIndex'] = await self.extern_splitFile(
+                    fileData['chunkIndex'],
+                    fileData['path'],
+                    copied_file_path
+                )
 
             msg_obj = await self.telegram.send_document(
                     self.telegram_channel_id,
                     copied_file_path,
+                    file_name = None if self.now_transmitting == 2 else "{}_{}".format(self.s_file, fileData['index'])
                     progress=self.progress_fun,
                     progress_args=(len(fileData['fileID']), tot_chunks,
                                    self.s_file)
             )
 
-            await async_remove(copied_file_path) # delete the chunk
+            if self.now_transmitting == 2:
+                await async_remove(copied_file_path) # delete the chunk
 
             if self.should_stop == 2: # force stop
-                if fileData['size'] <= self.chunk_size:
+                if self.now_transmitting == 1:
                     self.should_stop = 0
                     return
                 break
@@ -167,59 +170,34 @@ class TransferHandler:
 
 
     def downloadFiles(self, fileData: dict):
-        if fileData['dPath']:
-            copied_file_path = path.join(fileData['dPath'],
-                                         fileData['rPath'][-1])
-        else:
-            copied_file_path = path.join(self.data_path, "downloads",
-                                         fileData['rPath'][-1])
+        self.now_transmitting = 1 if fileData['size'] <= self.chunk_size else 2
 
-        if len(fileData['fileID']) == 1: # no chunks
-            # Single chunk download doesn't call data_fun
-            self.now_transmitting = 1
-
-            self.telegram.get_messages(self.telegram_channel_id,
-                                       fileData['fileID'][0]).download(
-                file_name=copied_file_path,
-                progress=self.progress_fun,
-                progress_args=(0, 1, self.s_file) # 0 out of 1 chunks
-            )
-
-            self.now_transmitting = 0
-
-            if self.should_stop == 2:
-                self.should_stop = 0
-                return 0
-
-            return 1
-
-        # else has chunks
+        final_file_path = path.join(fileData['dPath'], fileData['rPath'][-1]) if fileData['dPath'] else
+                        path.join(self.data_path, "downloads", fileData['rPath'][-1])
         tmp_file_path = path.join(self.tmp_path, "tfilemgr",
                                   "{}_chunk".format(fileData['rPath'][-1]))
 
-        self.now_transmitting = 2
         while fileData['IDindex'] < len(fileData['fileID']):
-            self.telegram.get_messages(self.telegram_channel_id,
-                                       fileData['fileID'][fileData['IDindex']]
-                                       ).download(
-                    file_name=tmp_file_path,
+            await self.telegram.get_messages(self.telegram_channel_id,
+                                             fileData['fileID'][fileData['IDindex']]
+                                             ).download(
+                    file_name=final_file_path if self.now_transmitting == 1 else tmp_file_path,
                     progress=self.progress_fun,
                     progress_args=(fileData['IDindex'], len(fileData['fileID']),
                                    self.s_file)
             )
 
-            if self.should_stop == 2:
+            if self.should_stop == 2: # force stop
                 break
 
             fileData['IDindex']+=1
 
-            self.extern.concatFiles(
-                tmp_file_path.encode('ascii'),
-                copied_file_path.encode('ascii'),
-                1024
-            )
-
-            remove(tmp_file_path)
+            if self.now_transmitting == 2:
+                await self.extern_concatFiles(
+                    tmp_file_path,
+                    copied_file_path
+                )
+                await async_remove(tmp_file_path)
 
             if fileData['IDindex'] == len(fileData['fileID']):
                 # finished or canceled with 1 but it was last chunk
