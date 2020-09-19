@@ -68,6 +68,7 @@ class TransferHandler:
         # Before starting the UI
         self.telegram.start()
 
+
     async def extern_concatFiles(self,
                                  filePath: str,
                                  outFileName: str):
@@ -103,6 +104,16 @@ class TransferHandler:
                 break
 
 
+    async def async_remove(self, filePath: str):
+        threadJob = threading.Thread(target=remove, args=(filePath,))
+        threadJob.start()
+
+        while True:
+            await asyncio.sleep(1)
+            if not threadJob.isAlive():
+                break
+
+
     def uploadFiles(self, fileData: dict):
         tot_chunks = (fileData['size'] // self.chunk_size) + 1 # used by progress fun
         self.now_transmitting = 1 if fileData['size'] <= self.chunk_size else 2
@@ -125,7 +136,7 @@ class TransferHandler:
                                    self.s_file)
             )
 
-            remove(copied_file_path) # delete the chunk
+            await async_remove(copied_file_path) # delete the chunk
 
             if self.should_stop == 2: # force stop
                 if fileData['size'] <= self.chunk_size:
