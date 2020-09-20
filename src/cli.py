@@ -44,14 +44,18 @@ class UserInterface(SessionsHandler):
                 # widget is dead, the main loop must've been destroyed
                 return
 
-            local_used_sessions.set_text("[ {} of {} ]".format(1, 4))
+            local_used_sessions.set_text("[ {} of {} ]".format(self.max_sessions - len(self.freeSessions), self.max_sessions))
+            local_transfer_info.contents = []
 
-            local_transfer_info.contents = [(urwid.Text("fewfwe"), local_transfer_info.options('pack', None)),
-                (urwid.Text("faawe"), local_transfer_info.options('pack', None))]
+            for sFile, info in self.transferInfo.items():
+                if not info['type']: # empty
+                    continue
 
-            #for sFile, info in self.transferInfo.items():
-            #    if not info['type']: # empty
-            #        continue
+                local_transfer_info.contents.append((div, pack_option))
+                local_transfer_info.contents.append((urwid.Text("Uploading:" if info['type'] == 'upload' else \
+                                                                "Downloading:"), pack_option))
+                local_transfer_info.contents.append((urwid.Text('/'.join(info['rPath'])), pack_option))
+                local_transfer_info.contents.append((urwid.Text("{}% - {}".format(info['progress'], bytesConvert(info['size']))), pack_option))
 
             # Schedule to update the clock again in one second
             self.loop.call_later(1, update_info, used_sessions_ref, transfer_info_ref)
@@ -59,9 +63,10 @@ class UserInterface(SessionsHandler):
         title = urwid.Text("Telegram File Manager", align='center')
         used_sessions = urwid.Text('', align='right')
         transfer_info = urwid.Pile([])
+        pack_option = transfer_info.options('pack', None)
         div = urwid.Divider()
 
-        pile = urwid.Pile([title, used_sessions, div, transfer_info])
+        pile = urwid.Pile([title, used_sessions, transfer_info])
 
         update_info(weakref.ref(used_sessions), weakref.ref(transfer_info))
 
