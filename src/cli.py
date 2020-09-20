@@ -22,8 +22,6 @@ class UserInterface(SessionsHandler):
     def __init__(self):
         super().__init__()
 
-        self.progress_info = "1"
-
         self.loop = asyncio.get_event_loop()
 
         self.main_widget = self.build_main_widgets()
@@ -50,6 +48,10 @@ class UserInterface(SessionsHandler):
 
             local_transfer_info.contents = [(urwid.Text("fewfwe"), local_transfer_info.options('pack', None)),
                 (urwid.Text("faawe"), local_transfer_info.options('pack', None))]
+
+            #for sFile, info in self.transferInfo.items():
+            #    if not info['type']: # empty
+            #        continue
 
             # Schedule to update the clock again in one second
             self.loop.call_later(1, update_info, used_sessions_ref, transfer_info_ref)

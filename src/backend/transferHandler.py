@@ -114,7 +114,7 @@ class TransferHandler:
                 break
 
 
-    def uploadFiles(self, fileData: dict):
+    async def uploadFiles(self, fileData: dict):
         tot_chunks = (fileData['size'] // self.chunk_size) + 1 # used by progress fun
         self.now_transmitting = 1 if fileData['size'] <= self.chunk_size else 2
 
@@ -132,7 +132,7 @@ class TransferHandler:
             msg_obj = await self.telegram.send_document(
                     self.telegram_channel_id,
                     copied_file_path,
-                    file_name = None if self.now_transmitting == 2 else "{}_{}".format(self.s_file, fileData['index'])
+                    file_name = None if self.now_transmitting == 2 else "{}_{}".format(self.s_file, fileData['index']),
                     progress=self.progress_fun,
                     progress_args=(len(fileData['fileID']), tot_chunks,
                                    self.s_file)
@@ -169,11 +169,11 @@ class TransferHandler:
             # return file information
 
 
-    def downloadFiles(self, fileData: dict):
+    async def downloadFiles(self, fileData: dict):
         self.now_transmitting = 1 if fileData['size'] <= self.chunk_size else 2
 
-        final_file_path = path.join(fileData['dPath'], fileData['rPath'][-1]) if fileData['dPath'] else
-                        path.join(self.data_path, "downloads", fileData['rPath'][-1])
+        final_file_path = path.join(fileData['dPath'], fileData['rPath'][-1]) if fileData['dPath'] else \
+                          path.join(self.data_path, "downloads", fileData['rPath'][-1])
         tmp_file_path = path.join(self.tmp_path, "tfilemgr",
                                   "{}_chunk".format(fileData['rPath'][-1]))
 

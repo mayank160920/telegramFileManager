@@ -50,7 +50,7 @@ variable)
 for every session from 1 to `max_sessions` (which by default is 4), there is no
 **easy** way to automate this, also you will need your own [app_id and api_hash](https://github.com/BouncyMaster/telegramFileManager#getting-app_id-and-api_hash)
 
-**Warning**: You may get a FloodWait exception when doing this,
+**Warning**: You might get a FloodWait exception when doing this,
 if you get that you need to force close the program, wait for the time
 specified, then run the program again.
 
