@@ -5,6 +5,7 @@ import asyncio
 
 from backend.sessionsHandler import SessionsHandler
 
+
 def bytesConvert(rawBytes: int) -> str:
     if   rawBytes >= 16**10:
         return "{} TiB".format(round(rawBytes/16**10, 2))
@@ -25,6 +26,7 @@ class UserInterface(SessionsHandler):
         self.loop = asyncio.get_event_loop()
 
         self.main_widget = self.build_main_widgets()
+        self.upload_widget = self.build_upload_widgets()
 
         self.urwid_loop = urwid.MainLoop(
             self.main_widget,
@@ -73,20 +75,28 @@ class UserInterface(SessionsHandler):
         return urwid.Filler(pile, 'top')
 
 
+    def build_upload_widgets(self):
+        div = urwid.Divider()
+        title = urwid.Text("Upload file")
+        inputs = [urwid.Edit("File Path: "),
+                  urwid.Edit("Relative Path: ")]
+        pile = urwid.Pile([title, div, inputs[0]])
+
+        return urwid.Filler(pile, 'top')
+
+
     def handle_keys_main(self, key):
-        #optionList = [{'keybind' : self.cfg['keybinds']['upload'], 'function' : self.uploadHandler},
-        #              {'keybind' : self.cfg['keybinds']['download'], 'function' : self.downloadHandler},
-        #              {'keybind' : self.cfg['keybinds']['cancel'], 'function' : self.cancelHandler},
-        #              {'keybind' : self.cfg['keybinds']['resume'], 'function' : self.resumeHandlerUI}]
-
         if key == 'esc':
-            self.urwid_loop.unhandled_input = self.handle_keys_temp
-
-    def handle_keys_temp(self, key):
-        if key == 'd':
-            self.endSessions() # Must call to exit the program
+            self.endSessions()
             raise urwid.ExitMainLoop
+        elif key == 'u':
+            self.urwid_loop.widget = self.upload_widget
+            self.urwid_loop.unhandled_input = self.handle_keys_upload
 
+
+    def handle_keys_upload(self, key):
+        if key in ('q', 'Q'):
+            raise urwid.ExitMainLoop()
 
 if __name__ == "__main__":
     ui = UserInterface()
