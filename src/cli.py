@@ -207,13 +207,13 @@ class UserInterface(SessionsHandler):
             return
 
         self.transferInThread({'rPath'      : inData['rPath'].split('/'),
-                                        'path'       : inData['path'],
-                                        'size'       : os.path.getsize(inData['path']),
-                                        'fileID'     : [],
-                                        'index'      : 0, # managed by transferHandler
-                                        'chunkIndex' : 0,
-                                        'type'       : 'upload',
-                                        'handled'    : 0})
+                               'path'       : inData['path'],
+                               'size'       : os.path.getsize(inData['path']),
+                               'fileID'     : [],
+                               'index'      : 0, # managed by transferHandler
+                               'chunkIndex' : 0,
+                               'type'       : 'upload',
+                               'handled'    : 0})
 
 
     def downloadHandler(self):
