@@ -37,8 +37,11 @@ class UserInterface(SessionsHandler):
                              'widget' : self.download_widget,
                              'input' : self.handle_keys_download}]
 
+        palette = [('boldtext', 'default,bold', 'default', 'bold'),]
+
         self.urwid_loop = urwid.MainLoop(
-            self.main_widget,
+            widget=self.main_widget,
+            palette=palette,
             handle_mouse=False,
             unhandled_input=self.handle_keys_main,
             event_loop=urwid.AsyncioEventLoop(loop=self.loop)
@@ -85,13 +88,17 @@ class UserInterface(SessionsHandler):
 
 
     def build_upload_widget(self):
-        div = urwid.Divider()
-        title = urwid.Text("Upload file")
-        inputs = [urwid.Edit("File Path: "),
-                  urwid.Edit("Relative Path: ")]
-        pile = urwid.Pile([title, div, inputs[0]])
+        fpath = urwid.Edit(('boldtext', "File Path:\n"))
+        rpath = urwid.Edit(('boldtext', "Relative Path:\n"))
 
-        return urwid.Filler(pile, 'top')
+        upload = urwid.Button("Upload", self.upload_in_loop,
+            (fpath, rpath))
+        cancel = urwid.Button("Cancel", self.return_to_main)
+
+        div = urwid.Divider()
+        pile = urwid.Pile([fpath, div, rpath, div, upload, cancel])
+
+        return urwid.Filler(pile, valign='top')
 
 
     def build_download_widget(self):
@@ -116,10 +123,20 @@ class UserInterface(SessionsHandler):
                 break # don't check for other keys
 
 
-    def handle_keys_upload(self, key):
-        if key == 'q':
-            self.urwid_loop.widget = self.main_widget
-            self.urwid_loop.unhandled_input = self.handle_keys_main
+    def return_to_main(self, key):
+        self.urwid_loop.widget = self.main_widget
+        self.urwid_loop.unhandled_input = self.handle_keys_main
+
+
+    def upload_in_loop(self, path, rPath):
+        self.loop.create_task(self.upload({
+             'rPath'      : rPath.split('/'),
+             'path'       : path,
+             'size'       : os.path.getsize(path),
+             'fileID'     : [],
+             'index'      : 0, # managed by transferHandler
+             'chunkIndex' : 0,
+             'handled'    : 0}))
 
 
     def handle_keys_download(self, key):
