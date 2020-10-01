@@ -31,13 +31,13 @@ class UserInterface(SessionsHandler):
 
         self.mainKeyList = [{'keybind' : self.cfg['keybinds']['upload'],
                              'widget' : self.upload_widget,
-                             'input' : self.handle_keys_upload},
+                             'input' : self.handle_keys_null},
 
                             {'keybind' : self.cfg['keybinds']['download'],
                              'widget' : self.download_widget,
                              'input' : self.handle_keys_download}]
 
-        palette = [('boldtext', 'default,bold', 'default', 'bold'),]
+        palette = [('boldtext', 'default,bold', 'default', 'bold'), ('reversed', 'standout', '')]
 
         self.urwid_loop = urwid.MainLoop(
             widget=self.main_widget,
@@ -92,11 +92,13 @@ class UserInterface(SessionsHandler):
         rpath = urwid.Edit(('boldtext', "Relative Path:\n"))
 
         upload = urwid.Button("Upload", self.upload_in_loop,
-            (fpath, rpath))
+            {'path' : weakref.ref(fpath), 'rPath' : weakref.ref(rpath)})
         cancel = urwid.Button("Cancel", self.return_to_main)
 
         div = urwid.Divider()
-        pile = urwid.Pile([fpath, div, rpath, div, upload, cancel])
+        pile = urwid.Pile([fpath, div, rpath, div,
+                           urwid.AttrMap(upload, None, focus_map='reversed'),
+                           urwid.AttrMap(cancel, None, focus_map='reversed')])
 
         return urwid.Filler(pile, valign='top')
 
@@ -128,7 +130,10 @@ class UserInterface(SessionsHandler):
         self.urwid_loop.unhandled_input = self.handle_keys_main
 
 
-    def upload_in_loop(self, path, rPath):
+    def upload_in_loop(self, key, data):
+        path = data['path']().edit_text
+        rPath = data['rPath']().edit_text
+
         self.loop.create_task(self.upload({
              'rPath'      : rPath.split('/'),
              'path'       : path,
@@ -138,11 +143,16 @@ class UserInterface(SessionsHandler):
              'chunkIndex' : 0,
              'handled'    : 0}))
 
+        self.urwid_loop.widget = self.main_widget
+        self.urwid_loop.unhandled_input = self.handle_keys_main
+
 
     def handle_keys_download(self, key):
         if key == 'q':
             self.urwid_loop.widget = self.main_widget
             self.urwid_loop.unhandled_input = self.handle_keys_main
+
+    def handle_keys_null(self, key): pass
 
 if __name__ == "__main__":
     ui = UserInterface()
