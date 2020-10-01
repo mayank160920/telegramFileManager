@@ -25,8 +25,17 @@ class UserInterface(SessionsHandler):
 
         self.loop = asyncio.get_event_loop()
 
-        self.main_widget = self.build_main_widgets()
-        self.upload_widget = self.build_upload_widgets()
+        self.main_widget = self.build_main_widget()
+        self.upload_widget = self.build_upload_widget()
+        self.download_widget = self.build_download_widget()
+
+        self.mainKeyList = [{'keybind' : self.cfg['keybinds']['upload'],
+                             'widget' : self.upload_widget,
+                             'input' : self.handle_keys_upload},
+
+                            {'keybind' : self.cfg['keybinds']['download'],
+                             'widget' : self.download_widget,
+                             'input' : self.handle_keys_download}]
 
         self.urwid_loop = urwid.MainLoop(
             self.main_widget,
@@ -37,7 +46,7 @@ class UserInterface(SessionsHandler):
         self.urwid_loop.run()
 
 
-    def build_main_widgets(self):
+    def build_main_widget(self):
         def update_info(used_sessions_ref, transfer_info_ref):
             local_used_sessions = used_sessions_ref()
             local_transfer_info = transfer_info_ref()
@@ -75,9 +84,19 @@ class UserInterface(SessionsHandler):
         return urwid.Filler(pile, 'top')
 
 
-    def build_upload_widgets(self):
+    def build_upload_widget(self):
         div = urwid.Divider()
         title = urwid.Text("Upload file")
+        inputs = [urwid.Edit("File Path: "),
+                  urwid.Edit("Relative Path: ")]
+        pile = urwid.Pile([title, div, inputs[0]])
+
+        return urwid.Filler(pile, 'top')
+
+
+    def build_download_widget(self):
+        div = urwid.Divider()
+        title = urwid.Text("Download file")
         inputs = [urwid.Edit("File Path: "),
                   urwid.Edit("Relative Path: ")]
         pile = urwid.Pile([title, div, inputs[0]])
@@ -89,14 +108,24 @@ class UserInterface(SessionsHandler):
         if key == 'esc':
             self.endSessions()
             raise urwid.ExitMainLoop
-        elif key == 'u':
-            self.urwid_loop.widget = self.upload_widget
-            self.urwid_loop.unhandled_input = self.handle_keys_upload
+
+        for i in self.mainKeyList:
+            if key == i['keybind']:
+                self.urwid_loop.widget = i['widget']
+                self.urwid_loop.unhandled_input = i['input']
+                break # don't check for other keys
 
 
     def handle_keys_upload(self, key):
-        if key in ('q', 'Q'):
-            raise urwid.ExitMainLoop()
+        if key == 'q':
+            self.urwid_loop.widget = self.main_widget
+            self.urwid_loop.unhandled_input = self.handle_keys_main
+
+
+    def handle_keys_download(self, key):
+        if key == 'q':
+            self.urwid_loop.widget = self.main_widget
+            self.urwid_loop.unhandled_input = self.handle_keys_main
 
 if __name__ == "__main__":
     ui = UserInterface()
