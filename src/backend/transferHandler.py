@@ -139,7 +139,7 @@ class TransferHandler:
             )
 
             if self.now_transmitting == 2:
-                await async_remove(copied_file_path) # delete the chunk
+                await self.async_remove(copied_file_path) # delete the chunk
 
             if self.should_stop == 2: # force stop
                 if self.now_transmitting == 1:
@@ -197,7 +197,7 @@ class TransferHandler:
                     tmp_file_path,
                     copied_file_path
                 )
-                await async_remove(tmp_file_path)
+                await self.async_remove(tmp_file_path)
 
             if fileData['IDindex'] == len(fileData['fileID']):
                 # finished or canceled with 1 but it was last chunk
