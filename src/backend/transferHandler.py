@@ -59,7 +59,7 @@ class TransferHandler:
         self.should_stop = 0
 
         self.chunk_size = 2000*1024*1024
-        self.mul_chunk_size = self.chunk_size // 1024 
+        self.mul_chunk_size = self.chunk_size // 1024
 
         self.telegram = Client(path.join(self.data_path, "a{}".format(s_file)),
                                config['telegram']['api_id'], config['telegram']['api_hash'])
@@ -131,7 +131,7 @@ class TransferHandler:
 
             msg_obj = await self.telegram.send_document(
                     self.telegram_channel_id,
-                    copied_file_path,
+                    copied_file_path if self.now_transmitting == 2 else fileData['path'],
                     file_name = None if self.now_transmitting == 2 else "{}_{}".format(self.s_file, fileData['index']),
                     progress=self.progress_fun,
                     progress_args=(len(fileData['fileID']), tot_chunks,
