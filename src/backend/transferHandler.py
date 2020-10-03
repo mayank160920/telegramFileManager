@@ -20,13 +20,13 @@ Also when a file with same name as one of previous files has been downloaded
 then the original file will be replaced. (If the original has not been moved)
 '''
 
-from ctypes import *
 from pyrogram import Client
-import threading
 import asyncio
 from shutil import copyfile
-from os import remove, path
+from os import path
 import sys
+from backend.asyncFiles import AsyncFiles
+
 
 class TransferHandler:
     def __init__(self,
@@ -36,14 +36,9 @@ class TransferHandler:
                  data_fun: callable, # Called for multi chunk transfers
                  local_library: bool = True): # Where to search for library
 
-        libPath = "{}transferHandler_extern.{}".format('' if local_library else '../', 'dll' if sys.platform == 'win32' else 'so')
-        self.extern = CDLL(libPath)
-        self.extern.splitFile.restype = c_size_t
-        self.extern.splitFile.argtypes = [c_size_t, c_char_p, c_char_p,
-                                          c_size_t, c_size_t]
-
-        self.extern.concatFiles.restype = c_char
-        self.extern.concatFiles.argtypes = [c_char_p, c_char_p, c_size_t]
+        self.asyncFiles = AsyncFiles(
+            "{}transferHandler_extern.{}".format('' if local_library else '../',
+            'dll' if sys.platform == 'win32' else 'so'))
 
         try:
             self.telegram_channel_id = int(config['telegram']['channel_id'])
@@ -58,8 +53,8 @@ class TransferHandler:
         self.now_transmitting = 0 # no, single chunk, multi chunk (0-2)
         self.should_stop = 0
 
-        self.chunk_size = 2000*1024*1024
-        self.mul_chunk_size = self.chunk_size // 1024
+        self.mul_chunk_size = 2000*1024
+        self.chunk_size = self.mul_chunk_size * 1024
 
         self.telegram = Client(path.join(self.data_path, "a{}".format(s_file)),
                                config['telegram']['api_id'], config['telegram']['api_hash'])
@@ -67,51 +62,6 @@ class TransferHandler:
         # So that if we are missing any sessions it will prompt for login
         # Before starting the UI
         self.telegram.start()
-
-
-    async def extern_concatFiles(self,
-                                 filePath: str,
-                                 outFileName: str):
-
-        threadJob = threading.Thread(target=self.extern.concatFiles,
-                                     args=(filePath.encode('ascii'),
-                                           outFileName.encode('ascii'),
-                                           1024,))
-        threadJob.start()
-
-        while True:
-            await asyncio.sleep(1)
-            if not threadJob.isAlive():
-                break
-
-
-    async def extern_splitFile(self,
-                               startIndex: int,
-                               filePath: str,
-                               outFileName: str):
-
-        threadJob = threading.Thread(target=self.extern.splitFile,
-                                     args=(startIndex,
-                                           filePath.encode('ascii'),
-                                           outFileName.encode('ascii'),
-                                           self.mul_chunk_size,
-                                           1024,))
-        threadJob.start()
-
-        while True:
-            await asyncio.sleep(1)
-            if not threadJob.isAlive():
-                break
-
-
-    async def async_remove(self, filePath: str):
-        threadJob = threading.Thread(target=remove, args=(filePath,))
-        threadJob.start()
-
-        while True:
-            await asyncio.sleep(1)
-            if not threadJob.isAlive():
-                break
 
 
     async def uploadFiles(self, fileData: dict):
@@ -123,23 +73,27 @@ class TransferHandler:
                 copied_file_path = path.join(self.tmp_path, "tfilemgr",
                     "{}_{}".format(self.s_file, fileData['index']))
 
-                fileData['chunkIndex'] = await self.extern_splitFile(
+                fileData['chunkIndex'] = await self.asyncFiles.splitFile(
                     fileData['chunkIndex'],
-                    fileData['path'],
-                    copied_file_path
+                    fileData['path'].encode('ascii'),
+                    copied_file_path.encode('ascii'),
+                    self.mul_chunk_size, 1024
                 )
 
             msg_obj = await self.telegram.send_document(
                     self.telegram_channel_id,
-                    copied_file_path if self.now_transmitting == 2 else fileData['path'],
-                    file_name = None if self.now_transmitting == 2 else "{}_{}".format(self.s_file, fileData['index']),
+                    copied_file_path if self.now_transmitting == 2 else \
+                        fileData['path'],
+                    file_name = None if self.now_transmitting == 2 else \
+                        "{}_{}".format(self.s_file, fileData['index']),
                     progress=self.progress_fun,
                     progress_args=(len(fileData['fileID']), tot_chunks,
                                    self.s_file)
             )
 
             if self.now_transmitting == 2:
-                await self.async_remove(copied_file_path) # delete the chunk
+                await self.asyncFiles.remove(copied_file_path)
+                # delete the chunk
 
             if self.should_stop == 2: # force stop
                 if self.now_transmitting == 1:
@@ -193,11 +147,12 @@ class TransferHandler:
             fileData['IDindex']+=1
 
             if self.now_transmitting == 2:
-                await self.extern_concatFiles(
+                await self.asyncFiles.concatFiles(
                     tmp_file_path,
-                    copied_file_path
+                    copied_file_path,
+                    1024
                 )
-                await self.async_remove(tmp_file_path)
+                await self.asyncFiles.remove(tmp_file_path)
 
             if fileData['IDindex'] == len(fileData['fileID']):
                 # finished or canceled with 1 but it was last chunk
