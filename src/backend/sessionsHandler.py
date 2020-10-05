@@ -7,18 +7,10 @@ import asyncio
 
 from backend.transferHandler import TransferHandler
 from backend.fileIO import FileIO
-from backend import misc
 
 class SessionsHandler:
     def __init__(self):
-        self.cfg = misc.loadConfig()
-        self.max_sessions = int(self.cfg['telegram']['max_sessions'])
-
-        self.fileIO = FileIO(
-            self.cfg['paths']['data_path'],
-            self.cfg['paths']['tmp_path'],
-            self.max_sessions
-        )
+        self.fileIO = FileIO()
 
         self.tHandler = {}
         self.freeSessions = []
@@ -26,7 +18,7 @@ class SessionsHandler:
         self.fileDatabase = self.fileIO.loadDatabase()
         self.resumeData = self.fileIO.loadResumeData()
 
-        for i in range(1, self.max_sessions+1):
+        for i in range(1, int(self.fileIO.cfg['telegram']['max_sessions'])+1):
             self.freeSessions.append(str(i)) # all sessions are free by default
             self.transferInfo[str(i)] = {}
             self.transferInfo[str(i)]['rPath'] = ''
@@ -35,7 +27,7 @@ class SessionsHandler:
             self.transferInfo[str(i)]['type'] = None
 
             self.tHandler[str(i)] = TransferHandler(
-                self.cfg, str(i), self._saveProgress, self._saveResumeData, False
+                self.fileIO.cfg, str(i), self._saveProgress, self._saveResumeData, False
             ) # initialize all sessions that will be used
 
         self.chunkSize = self.tHandler['1'].chunk_size
@@ -57,8 +49,8 @@ class SessionsHandler:
 
 
     def _freeSession(self, sFile: str):
-        if not int(sFile) in range(1, self.max_sessions+1):
-            raise IndexError("sFile should be between 1 and {}.".format(self.max_sessions))
+        if not int(sFile) in range(1, int(self.fileIO.cfg['telegram']['max_sessions'])+1):
+            raise IndexError("sFile should be between 1 and {}.".format(int(self.fileIO.cfg['telegram']['max_sessions'])))
         if sFile in self.freeSessions:
             raise ValueError("Can't free a session that is already free.")
 
@@ -76,8 +68,8 @@ class SessionsHandler:
 
 
     def resumeHandler(self, sFile: str, selected: int = 0):
-        if not int(sFile) in range(1, self.max_sessions+1):
-            raise IndexError("sFile should be between 1 and {}.".format(self.max_sessions))
+        if not int(sFile) in range(1, int(self.fileIO.cfg['telegram']['max_sessions'])+1):
+            raise IndexError("sFile should be between 1 and {}.".format(int(self.fileIO.cfg['telegram']['max_sessions'])))
 
         if selected == 1: # Finish the transfer
             if self.resumeData[sFile]['handled'] != 1:
@@ -188,8 +180,8 @@ class SessionsHandler:
 
 
     def cancelTransfer(self, sFile: str):
-        if not int(sFile) in range(1, self.max_sessions+1):
-            raise IndexError("sFile should be between 1 and {}.".format(self.max_sessions))
+        if not int(sFile) in range(1, int(self.fileIO.cfg['telegram']['max_sessions'])+1):
+            raise IndexError("sFile should be between 1 and {}.".format(int(self.fileIO.cfg['telegram']['max_sessions'])))
 
         if self.tHandler[sFile].should_stop:
             raise ValueError("Transfer already cancelled.")
@@ -198,5 +190,5 @@ class SessionsHandler:
 
 
     def endSessions(self):
-        for i in range(1, self.max_sessions+1):
+        for i in range(1, int(self.fileIO.cfg['telegram']['max_sessions'])+1):
             self.tHandler[str(i)].endSession()

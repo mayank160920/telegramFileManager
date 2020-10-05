@@ -29,11 +29,11 @@ class UserInterface(SessionsHandler):
         self.upload_widget = self.build_upload_widget()
         self.download_widget = self.build_download_widget()
 
-        self.mainKeyList = [{'keybind' : self.cfg['keybinds']['upload'],
+        self.mainKeyList = [{'keybind' : self.fileIO.cfg['keybinds']['upload'],
                              'widget' : self.upload_widget,
                              'input' : self.handle_keys_null},
 
-                            {'keybind' : self.cfg['keybinds']['download'],
+                            {'keybind' : self.fileIO.cfg['keybinds']['download'],
                              'widget' : self.download_widget,
                              'input' : self.handle_keys_download}]
 
@@ -58,7 +58,8 @@ class UserInterface(SessionsHandler):
                 # widget is dead, the main loop must've been destroyed
                 return
 
-            local_used_sessions.set_text("[ {} of {} ]".format(self.max_sessions - len(self.freeSessions), self.max_sessions))
+            local_used_sessions.set_text("[ {} of {} ]".format(int(self.fileIO.cfg['telegram']['max_sessions']) - len(self.freeSessions),
+                                                               int(self.fileIO.cfg['telegram']['max_sessions'])))
             local_transfer_info.contents = []
 
             for sFile, info in self.transferInfo.items():
@@ -151,6 +152,7 @@ class UserInterface(SessionsHandler):
         if key == 'q':
             self.urwid_loop.widget = self.main_widget
             self.urwid_loop.unhandled_input = self.handle_keys_main
+
 
     def handle_keys_null(self, key): pass
 
