@@ -1,7 +1,7 @@
 # telegramFileManager
-File Manager using [pyrogram](https://github.com/pyrogram/pyrogram) library that
-uses Telegram servers for storing
-files. This program has an advanced command-line interface, ability to transfer files
+File Manager that uses Telegram servers for storing files.
+Powered by [pyrogram](https://github.com/pyrogram/pyrogram).
+This program has an advanced command-line interface, ability to transfer files
 larger than 2G and more!
 ## This branch is still a WIP, use the master branch instead
 
@@ -10,8 +10,8 @@ larger than 2G and more!
 * Ability to transfer files larger than 2G (telegram's limit)
 * Intuitive and fast scrolling when selecting uploaded files
 * Fast downloading and uploading of files (40Mbit UP | 30Mbit DOWN)
-* Ability to upload/download multiple files at once (after 4 there if no speed
-benefit)
+* Ability to upload/download multiple files at once (after 4 simultaneous transfers
+there if no speed benefit)
 * Canceling and resuming file transfers
 * Interface that is similar to `rtorrent`
 
@@ -21,10 +21,11 @@ benefit)
 ### Or if you want to install them manually:
 * Pyrogram (`pip3 install -U https://github.com/pyrogram/pyrogram/archive/master.zip`) (Latest stable release has a bug with downloads)
 * TgCrypto (`pip3 install -U tgcrypto`) (Recommended: used by `pyrogram`)
+* Urwid (`pip3 install -U urwid`) (UI library)
 * PyInstaller (`pip3 install -U pyinstaller`) (Bundles the scripts into one executable)
 
 
-## Testing (currently only for GNU/Linux)
+## Testing (currently only for GNU/Linux) (WIP)
 ### The test generates a random file, uploads it to telegram, downloads it and then checks if the 2 files are the same
 * Create a file in the `src` folder named `config.py` with the contents:
 ```
@@ -55,7 +56,7 @@ if you get that you need to force close the program, wait for the time
 specified, then run the program again.
 
 ## Running tgFileManager
-### These keybinds can be changed by editing ~/.config/tgFileManager.ini
+### Most of these keybinds can be changed by editing ~/.config/tgFileManager.ini
 * Uploading: pressing `u` will prompt you for the file path and what you want it's path to be in the database.
 * Downloading: pressing `d` will show you the list of files you have uploaded and their total size.
 * Cancelling: selecting the transfer you want to cancel then pressing `c`
@@ -63,7 +64,7 @@ will soft cancel the transfer (will wait current chunk to finish transferring th
 will exit, this doesn't work with single chunk transfers)
 * Resuming: this will run at the start or the program or you can run it with `r`
 to handle cancelled transfers, also shows transfers cancelled by the program quitting abnormally
-* Quitting: press `Ctrl-Q`
+* Quitting: press `Esc`
 
 ## Getting app_id and api_hash
 * Log in to your [Telegram core](https://my.telegram.org)
@@ -81,7 +82,6 @@ or to my Payeer `P56752419`, any amount helps and i will be very thankful to you
 ## TODO
 * Make the `fileSelector` interface look like an actual file tree
 (Currently shows all the files in one list)
-* Make the program work with windows.
 
 ## End of the line
 This is my first big project so please tell me if there are any mistakes I made.
