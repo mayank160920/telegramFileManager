@@ -66,11 +66,16 @@ class UserInterface(SessionsHandler):
                 if not info['type']: # empty
                     continue
 
+                label = "{}\n{}\n{}% - {}".format(
+                    "Uploading:" if info['type'] == 'upload' else "Downloading:",
+                    '/'.join(info['rPath']),
+                    info['progress'], bytesConvert(info['size'])
+                )
+
                 local_transfer_info.contents.append((div, pack_option))
-                local_transfer_info.contents.append((urwid.Text("Uploading:" if info['type'] == 'upload' else \
-                                                                "Downloading:"), pack_option))
-                local_transfer_info.contents.append((urwid.Text('/'.join(info['rPath'])), pack_option))
-                local_transfer_info.contents.append((urwid.Text("{}% - {}".format(info['progress'], bytesConvert(info['size']))), pack_option))
+                local_transfer_info.contents.append(
+                    (urwid.AttrMap(urwid.Button(label), None, focus_map='reversed'), pack_option)
+                )
 
             # Schedule to update the clock again in one second
             self.loop.call_later(1, update_info, used_sessions_ref, transfer_info_ref)
