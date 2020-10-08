@@ -72,7 +72,6 @@ class UserInterface(SessionsHandler):
                     info['progress'], bytesConvert(info['size'])
                 )
 
-                local_transfer_info.contents.append((div, pack_option))
                 local_transfer_info.contents.append(
                     (urwid.AttrMap(urwid.Button(label), None, focus_map='reversed'), pack_option)
                 )
@@ -83,10 +82,11 @@ class UserInterface(SessionsHandler):
         title = urwid.Text("Telegram File Manager", align='center')
         used_sessions = urwid.Text('', align='right')
         transfer_info = urwid.Pile([])
+        test_button = urwid.AttrMap(urwid.Button("Test"), None, focus_map='reversed')
         pack_option = transfer_info.options('pack', None)
         div = urwid.Divider()
 
-        pile = urwid.Pile([title, used_sessions, transfer_info])
+        pile = urwid.Pile([title, used_sessions, test_button, div, transfer_info])
 
         update_info(weakref.ref(used_sessions), weakref.ref(transfer_info))
 
