@@ -72,9 +72,13 @@ class UserInterface(SessionsHandler):
                     info['progress'], bytesConvert(info['size'])
                 )
 
-                local_transfer_info.contents.append(
-                    (urwid.AttrMap(urwid.Button(label), None, focus_map='reversed'), pack_option)
+                button = urwid.Button(
+                    label,
+                    self.cancel_in_loop,
+                    {'sFile': sFile, 'info': info}
                 )
+
+                local_transfer_info.contents.append((urwid.AttrMap(button, None, focus_map='reversed'), pack_option))
 
             # Schedule to update the clock again in one second
             self.loop.call_later(1, update_info, used_sessions_ref, transfer_info_ref)
@@ -82,11 +86,11 @@ class UserInterface(SessionsHandler):
         title = urwid.Text("Telegram File Manager", align='center')
         used_sessions = urwid.Text('', align='right')
         transfer_info = urwid.Pile([])
-        test_button = urwid.AttrMap(urwid.Button("Test"), None, focus_map='reversed')
+        useless_button = urwid.Button("Current transfers")
         pack_option = transfer_info.options('pack', None)
         div = urwid.Divider()
 
-        pile = urwid.Pile([title, used_sessions, test_button, div, transfer_info])
+        pile = urwid.Pile([title, used_sessions, useless_button, div, transfer_info])
 
         update_info(weakref.ref(used_sessions), weakref.ref(transfer_info))
 
@@ -126,12 +130,27 @@ class UserInterface(SessionsHandler):
 
         for i in self.mainKeyList:
             if key == i['keybind']:
+                urwid.Button._command_map.restore_defaults()
                 self.urwid_loop.widget = i['widget']
                 self.urwid_loop.unhandled_input = i['input']
                 break # don't check for other keys
 
 
-    def return_to_main(self, key):
+    def handle_keys_download(self, key):
+        if key == 'q':
+            self.return_to_main()
+
+
+    def handle_keys_null(self, key): pass
+
+
+    def return_to_main(self, key = None):
+        # Kinda bad solution, we can't have a button in main widget
+        # that uses a different mapping
+        urwid.Button._command_map[self.fileIO.cfg['keybinds']['cancel']] = 'activate'
+        del urwid.Button._command_map['enter']
+        del urwid.Button._command_map[' ']
+
         self.urwid_loop.widget = self.main_widget
         self.urwid_loop.unhandled_input = self.handle_keys_main
 
@@ -149,17 +168,15 @@ class UserInterface(SessionsHandler):
              'chunkIndex' : 0,
              'handled'    : 0}))
 
-        self.urwid_loop.widget = self.main_widget
-        self.urwid_loop.unhandled_input = self.handle_keys_main
+        self.return_to_main()
 
 
-    def handle_keys_download(self, key):
-        if key == 'q':
-            self.urwid_loop.widget = self.main_widget
-            self.urwid_loop.unhandled_input = self.handle_keys_main
+    def cancel_in_loop(self, key, data):
+        if data['info']['size'] <= self.chunkSize: # no chunks
+            return # TODO: create a notification system
 
+        self.cancelTransfer(data['sFile'])
 
-    def handle_keys_null(self, key): pass
 
 if __name__ == "__main__":
     ui = UserInterface()
