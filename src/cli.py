@@ -23,6 +23,8 @@ class UserInterface(SessionsHandler):
     def __init__(self):
         super().__init__()
 
+        self.notifInfo = {'buffer': '', 'timer': 0, 'endTimer': 6}
+
         self.loop = asyncio.get_event_loop()
 
         self.main_widget = self.build_main_widget()
@@ -50,16 +52,27 @@ class UserInterface(SessionsHandler):
 
 
     def build_main_widget(self):
-        def update_info(used_sessions_ref, transfer_info_ref):
+        def update_info(used_sessions_ref, notif_text_ref, transfer_info_ref):
             local_used_sessions = used_sessions_ref()
+            local_notif_text = notif_text_ref()
             local_transfer_info = transfer_info_ref()
 
-            if not local_used_sessions or not local_transfer_info:
+            if not local_used_sessions or not local_notif_text or not local_transfer_info:
                 # widget is dead, the main loop must've been destroyed
                 return
 
             local_used_sessions.set_text("[ {} of {} ]".format(int(self.fileIO.cfg['telegram']['max_sessions']) - len(self.freeSessions),
                                                                int(self.fileIO.cfg['telegram']['max_sessions'])))
+
+            if self.notifInfo['buffer']:
+                if not self.notifInfo['timer']: # new notification
+                    local_notif_text.set_text(self.notifInfo['buffer'])
+                self.notifInfo['timer'] += 1
+                if self.notifInfo['timer'] == self.notifInfo['endTimer']:
+                    local_notif_text.set_text('')
+                    self.notifInfo['timer'] = 0
+                    self.notifInfo['buffer'] = ''
+
             local_transfer_info.contents = []
 
             for sFile, info in self.transferInfo.items():
@@ -81,18 +94,20 @@ class UserInterface(SessionsHandler):
                 local_transfer_info.contents.append((urwid.AttrMap(button, None, focus_map='reversed'), pack_option))
 
             # Schedule to update the clock again in one second
-            self.loop.call_later(1, update_info, used_sessions_ref, transfer_info_ref)
+            self.loop.call_later(1, update_info, used_sessions_ref, notif_text_ref, transfer_info_ref)
 
         title = urwid.Text("Telegram File Manager", align='center')
         used_sessions = urwid.Text('', align='right')
         transfer_info = urwid.Pile([])
         useless_button = urwid.Button("Current transfers")
+        notif_text = urwid.Text('', align='center')
+        custom_notif_text = urwid.AttrMap(notif_text, 'reversed')
         pack_option = transfer_info.options('pack', None)
         div = urwid.Divider()
 
-        pile = urwid.Pile([title, used_sessions, useless_button, div, transfer_info])
+        pile = urwid.Pile([title, used_sessions, urwid.Columns([useless_button, custom_notif_text], 1), div, transfer_info])
 
-        update_info(weakref.ref(used_sessions), weakref.ref(transfer_info))
+        update_info(weakref.ref(used_sessions), weakref.ref(notif_text), weakref.ref(transfer_info))
 
         return urwid.Filler(pile, 'top')
 
@@ -173,9 +188,14 @@ class UserInterface(SessionsHandler):
 
     def cancel_in_loop(self, key, data):
         if data['info']['size'] <= self.chunkSize: # no chunks
-            return # TODO: create a notification system
+            self.notifInfo['buffer'] = "Can't cancel single chunk transfers"
+            return
 
-        self.cancelTransfer(data['sFile'])
+        try:
+            self.cancelTransfer(data['sFile'])
+            self.notifInfo['buffer'] = "Transfer {} cancelled".format('/'.join(data['info']['rPath']))
+        except ValueError:
+            self.notifInfo['buffer'] = "Transfer already cancelled"
 
 
 if __name__ == "__main__":
