@@ -19,6 +19,12 @@ def bytesConvert(rawBytes: int) -> str:
         return "{} Bytes".format(rawBytes)
 
 
+class MenuButton(urwid.Button):
+    def __init__(self, caption, on_press=None, user_data=None):
+        super().__init__(caption, on_press, user_data)
+        self._w = urwid.AttrMap(urwid.SelectableIcon(caption), None, 'reversed')
+
+
 class UserInterface(SessionsHandler):
     def __init__(self):
         super().__init__()
@@ -129,13 +135,27 @@ class UserInterface(SessionsHandler):
 
 
     def build_download_widget(self):
-        div = urwid.Divider()
-        title = urwid.Text("Download file")
-        inputs = [urwid.Edit("File Path: "),
-                  urwid.Edit("Relative Path: ")]
-        pile = urwid.Pile([title, div, inputs[0]])
+        body = []
+        totalSize = 0
 
-        return urwid.Filler(pile, 'top')
+        for i in self.fileDatabase:
+            totalSize += i['size']
+
+            button = MenuButton("{}  {}".format(
+                                    '/'.join(i['rPath']),
+                                    bytesConvert(i['size'])
+                                ))
+            body.append(urwid.AttrMap(button, None, focus_map='reversed'))
+
+        body.insert(0, urwid.Divider())
+        body.insert(0, urwid.Text(
+            "Enter to download, d to delete, r to rename - {} Total".format(
+                bytesConvert(totalSize)
+            )
+        ))
+
+        listBox = urwid.ListBox(urwid.SimpleFocusListWalker(body))
+        return urwid.Padding(listBox, left=2, right=2)
 
 
     def handle_keys_main(self, key):
