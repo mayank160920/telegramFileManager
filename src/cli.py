@@ -20,9 +20,19 @@ def bytesConvert(rawBytes: int) -> str:
 
 
 class MenuButton(urwid.Button):
-    def __init__(self, caption, on_press=None, user_data=None):
-        super().__init__(caption, on_press, user_data)
+    signals = ['click', 'cancel', 'delete', 'rename']
+
+    def __init__(self, caption, actionDict = None):
+        super().__init__(caption)
+
         self._w = urwid.AttrMap(urwid.SelectableIcon(caption), None, 'reversed')
+        self.actionDict = actionDict
+
+    def keypress(self, size, key):
+        if key in self.actionDict:
+            self._emit(self.actionDict[key])
+        else:
+            return key
 
 
 class UserInterface(SessionsHandler):
@@ -91,11 +101,8 @@ class UserInterface(SessionsHandler):
                     info['progress'], bytesConvert(info['size'])
                 )
 
-                button = urwid.Button(
-                    label,
-                    self.cancel_in_loop,
-                    {'sFile': sFile, 'info': info}
-                )
+                button = MenuButton(label, {self.fileIO.cfg['keybinds']['cancel']: 'cancel'})
+                urwid.connect_signal(button, 'cancel', self.cancel_in_loop, {'sFile': sFile, 'info': info})
 
                 local_transfer_info.contents.append((urwid.AttrMap(button, None, focus_map='reversed'), pack_option))
 
@@ -135,7 +142,7 @@ class UserInterface(SessionsHandler):
 
 
     def build_download_widget(self):
-        body = []
+        body = [urwid.Divider()]
         totalSize = 0
 
         for i in self.fileDatabase:
@@ -144,10 +151,13 @@ class UserInterface(SessionsHandler):
             button = MenuButton("{}  {}".format(
                                     '/'.join(i['rPath']),
                                     bytesConvert(i['size'])
-                                ))
+                                ),
+                                {'enter': 'click',
+                                 'd'    : 'delete',
+                                 'r'    : 'rename'})
+
             body.append(urwid.AttrMap(button, None, focus_map='reversed'))
 
-        body.insert(0, urwid.Divider())
         body.insert(0, urwid.Text(
             "Enter to download, d to delete, r to rename - {} Total".format(
                 bytesConvert(totalSize)
@@ -165,7 +175,6 @@ class UserInterface(SessionsHandler):
 
         for i in self.mainKeyList:
             if key == i['keybind']:
-                urwid.Button._command_map.restore_defaults()
                 self.urwid_loop.widget = i['widget']
                 self.urwid_loop.unhandled_input = i['input']
                 break # don't check for other keys
@@ -180,12 +189,6 @@ class UserInterface(SessionsHandler):
 
 
     def return_to_main(self, key = None):
-        # Kinda bad solution, we can't have a button in main widget
-        # that uses a different mapping
-        urwid.Button._command_map[self.fileIO.cfg['keybinds']['cancel']] = 'activate'
-        del urwid.Button._command_map['enter']
-        del urwid.Button._command_map[' ']
-
         self.urwid_loop.widget = self.main_widget
         self.urwid_loop.unhandled_input = self.handle_keys_main
 
