@@ -194,21 +194,41 @@ class UserInterface(SessionsHandler):
         path = data['path'].edit_text
         rPath = data['rPath'].edit_text
 
-        if not path or not rPath:
+        if not self.freeSessions:
+            self.notifInfo['buffer'] = "All sessions are currently used"
+        elif not path or not rPath:
             self.notifInfo['buffer'] = "Please enter all info"
         elif not os.path.isfile(path):
             self.notifInfo['buffer'] = "There is no file with this path"
         else:
             self.loop.create_task(self.upload({
-                 'rPath'      : rPath.split('/'),
-                 'path'       : path,
-                 'size'       : os.path.getsize(path),
-                 'fileID'     : [],
-                 'index'      : 0, # managed by transferHandler
-                 'chunkIndex' : 0,
-                 'handled'    : 0}))
+                'rPath'      : rPath.split('/'),
+                'path'       : path,
+                'size'       : os.path.getsize(path),
+                'fileID'     : [],
+                'index'      : 0, # managed by transferHandler
+                'chunkIndex' : 0,
+                'handled'    : 0}))
 
         self.return_to_main()
+
+
+    def download_in_loop(self, key, data):
+        rPath = data['rPath'].edit_text
+        fileID = data['fileID'].edit_text
+        size = data['size'].edit_text
+
+        if not self.freeSessions:
+            self.notifInfo['buffer'] = "All sessions are currently used"
+        else:
+            self.loop.create_task(self.download({
+                'rPath'   : rPath.split('/'),
+                'dPath'   : '',
+                'fileID'  : fileID,
+                'IDindex' : 0,
+                'size'    : size,
+                'type'    : 'download',
+                'handled' : 0}))
 
 
     def cancel_in_loop(self, key, data):
