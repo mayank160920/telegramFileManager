@@ -44,15 +44,13 @@ class UserInterface(SessionsHandler):
         self.loop = asyncio.get_event_loop()
 
         self.main_widget = self.build_main_widget()
-        self.upload_widget = self.build_upload_widget()
-        self.download_widget = self.build_download_widget()
 
         self.mainKeyList = [{'keybind' : self.fileIO.cfg['keybinds']['upload'],
-                             'widget' : self.upload_widget,
+                             'widget' : self.build_upload_widget,
                              'input' : self.handle_keys_null},
 
                             {'keybind' : self.fileIO.cfg['keybinds']['download'],
-                             'widget' : self.download_widget,
+                             'widget' : self.build_download_widget,
                              'input' : self.handle_keys_download}]
 
         palette = [('boldtext', 'default,bold', 'default', 'bold'), ('reversed', 'standout', '')]
@@ -82,7 +80,7 @@ class UserInterface(SessionsHandler):
 
             if self.notifInfo['buffer']:
                 if not self.notifInfo['timer']: # new notification
-                    local_notif_text.set_text(self.notifInfo['buffer'])
+                    local_notif_text.set_text(('reversed', self.notifInfo['buffer']))
                 self.notifInfo['timer'] += 1
                 if self.notifInfo['timer'] == self.notifInfo['endTimer']:
                     local_notif_text.set_text('')
@@ -114,11 +112,10 @@ class UserInterface(SessionsHandler):
         transfer_info = urwid.Pile([])
         useless_button = urwid.Button("Current transfers")
         notif_text = urwid.Text('', align='center')
-        custom_notif_text = urwid.AttrMap(notif_text, 'reversed')
         pack_option = transfer_info.options('pack', None)
         div = urwid.Divider()
 
-        pile = urwid.Pile([title, used_sessions, urwid.Columns([useless_button, custom_notif_text], 1), div, transfer_info])
+        pile = urwid.Pile([title, used_sessions, urwid.Columns([useless_button, ('weight', 4, notif_text)], 1), div, transfer_info])
 
         update_info(weakref.ref(used_sessions), weakref.ref(notif_text), weakref.ref(transfer_info))
 
@@ -130,7 +127,7 @@ class UserInterface(SessionsHandler):
         rpath = urwid.Edit(('boldtext', "Relative Path:\n"))
 
         upload = urwid.Button("Upload", self.upload_in_loop,
-            {'path' : weakref.ref(fpath), 'rPath' : weakref.ref(rpath)})
+            {'path': fpath, 'rPath': rpath})
         cancel = urwid.Button("Cancel", self.return_to_main)
 
         div = urwid.Divider()
@@ -159,9 +156,9 @@ class UserInterface(SessionsHandler):
             body.append(urwid.AttrMap(button, None, focus_map='reversed'))
 
         body.insert(0, urwid.Text(
-            "Enter to download, d to delete, r to rename - {} Total".format(
+            ('reversed', "Enter to download, d to delete, r to rename - {} Total".format(
                 bytesConvert(totalSize)
-            )
+            ))
         ))
 
         listBox = urwid.ListBox(urwid.SimpleFocusListWalker(body))
@@ -175,7 +172,7 @@ class UserInterface(SessionsHandler):
 
         for i in self.mainKeyList:
             if key == i['keybind']:
-                self.urwid_loop.widget = i['widget']
+                self.urwid_loop.widget = i['widget']()
                 self.urwid_loop.unhandled_input = i['input']
                 break # don't check for other keys
 
@@ -194,17 +191,22 @@ class UserInterface(SessionsHandler):
 
 
     def upload_in_loop(self, key, data):
-        path = data['path']().edit_text
-        rPath = data['rPath']().edit_text
+        path = data['path'].edit_text
+        rPath = data['rPath'].edit_text
 
-        self.loop.create_task(self.upload({
-             'rPath'      : rPath.split('/'),
-             'path'       : path,
-             'size'       : os.path.getsize(path),
-             'fileID'     : [],
-             'index'      : 0, # managed by transferHandler
-             'chunkIndex' : 0,
-             'handled'    : 0}))
+        if not path or not rPath:
+            self.notifInfo['buffer'] = "Please enter all info"
+        elif not os.path.isfile(path):
+            self.notifInfo['buffer'] = "There is no file with this path"
+        else:
+            self.loop.create_task(self.upload({
+                 'rPath'      : rPath.split('/'),
+                 'path'       : path,
+                 'size'       : os.path.getsize(path),
+                 'fileID'     : [],
+                 'index'      : 0, # managed by transferHandler
+                 'chunkIndex' : 0,
+                 'handled'    : 0}))
 
         self.return_to_main()
 
