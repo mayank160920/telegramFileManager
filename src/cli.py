@@ -100,7 +100,7 @@ class UserInterface(SessionsHandler):
                 )
 
                 button = MenuButton(label, {self.fileIO.cfg['keybinds']['cancel']: 'cancel'})
-                urwid.connect_signal(button, 'cancel', self.cancel_in_loop, {'sFile': sFile, 'info': info})
+                urwid.connect_signal(button, 'cancel', self.cancel_in_loop, {'sFile': sFile, 'rPath': info['rPath']})
 
                 local_transfer_info.contents.append((urwid.AttrMap(button, None, focus_map='reversed'), pack_option))
 
@@ -152,6 +152,9 @@ class UserInterface(SessionsHandler):
                                 {'enter': 'click',
                                  'd'    : 'delete',
                                  'r'    : 'rename'})
+
+            urwid.connect_signal(button, 'click', self.download_in_loop,
+                {'rPath': i['rPath'], 'fileID': i['fileID'], 'size': i['size']})
 
             body.append(urwid.AttrMap(button, None, focus_map='reversed'))
 
@@ -214,21 +217,19 @@ class UserInterface(SessionsHandler):
 
 
     def download_in_loop(self, key, data):
-        rPath = data['rPath'].edit_text
-        fileID = data['fileID'].edit_text
-        size = data['size'].edit_text
-
         if not self.freeSessions:
             self.notifInfo['buffer'] = "All sessions are currently used"
         else:
             self.loop.create_task(self.download({
-                'rPath'   : rPath.split('/'),
+                'rPath'   : data['rPath'],
                 'dPath'   : '',
-                'fileID'  : fileID,
+                'fileID'  : data['fileID'],
                 'IDindex' : 0,
-                'size'    : size,
+                'size'    : data['size'],
                 'type'    : 'download',
                 'handled' : 0}))
+
+        self.return_to_main()
 
 
     def cancel_in_loop(self, key, data):
@@ -238,7 +239,7 @@ class UserInterface(SessionsHandler):
 
         try:
             self.cancelTransfer(data['sFile'])
-            self.notifInfo['buffer'] = "Transfer {} cancelled".format('/'.join(data['info']['rPath']))
+            self.notifInfo['buffer'] = "Transfer {} cancelled".format('/'.join(data['rPath']))
         except ValueError:
             self.notifInfo['buffer'] = "Transfer already cancelled"
 
