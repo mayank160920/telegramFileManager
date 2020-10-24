@@ -100,7 +100,9 @@ class UserInterface(SessionsHandler):
                 )
 
                 button = MenuButton(label, {self.fileIO.cfg['keybinds']['cancel']: 'cancel'})
-                urwid.connect_signal(button, 'cancel', self.cancel_in_loop, {'sFile': sFile, 'rPath': info['rPath']})
+                urwid.connect_signal(button, 'cancel', self.cancel_in_loop,
+                    {'sFile': sFile, 'size': info['size'], 'rPath': info['rPath']}
+                )
 
                 local_transfer_info.contents.append((urwid.AttrMap(button, None, focus_map='reversed'), pack_option))
 
@@ -208,10 +210,8 @@ class UserInterface(SessionsHandler):
                 'rPath'      : rPath.split('/'),
                 'path'       : path,
                 'size'       : os.path.getsize(path),
-                'fileID'     : [],
-                'index'      : 0, # managed by transferHandler
-                'chunkIndex' : 0,
-                'handled'    : 0}))
+                'handled'    : 0
+            }))
 
         self.return_to_main()
 
@@ -222,18 +222,17 @@ class UserInterface(SessionsHandler):
         else:
             self.loop.create_task(self.download({
                 'rPath'   : data['rPath'],
-                'dPath'   : '',
+                'dPath'   : '', # TODO: ask user about download path
                 'fileID'  : data['fileID'],
-                'IDindex' : 0,
                 'size'    : data['size'],
-                'type'    : 'download',
-                'handled' : 0}))
+                'handled' : 0
+            }))
 
         self.return_to_main()
 
 
     def cancel_in_loop(self, key, data):
-        if data['info']['size'] <= self.chunkSize: # no chunks
+        if data['size'] <= self.chunkSize: # no chunks
             self.notifInfo['buffer'] = "Can't cancel single chunk transfers"
             return
 

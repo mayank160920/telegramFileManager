@@ -129,7 +129,9 @@ class SessionsHandler:
         self.transferInfo[sFile]['size'] = fileData['size']
         self.transferInfo[sFile]['type'] = 'upload'
 
-        if not fileData['index']: # not resuming
+        fileData['chunkIndex'] = 0
+        fileData['fileID'] = []
+        if not 'index' in fileData: # not resuming
             fileData['index'] = self.fileIO.loadIndexData(sFile)
 
         finalData = await self.tHandler[sFile].uploadFiles(fileData)
@@ -163,16 +165,16 @@ class SessionsHandler:
         self.transferInfo[sFile]['size'] = fileData['size']
         self.transferInfo[sFile]['type'] = 'download'
 
+        fileData['IDindex'] = 0
+
         finalData = await self.tHandler[sFile].downloadFiles(fileData)
 
         self.transferInfo[sFile]['type'] = None
         self._freeSession(sFile)
 
-        if finalData: # finished downloading
-            if len(fileData['fileID']) > 1:
-                self.fileIO.delResumeData(sFile)
-                self.resumeData[sFile] = {}
-
+        if finalData and len(fileData['fileID']) > 1: # finished downloading
+            self.fileIO.delResumeData(sFile)
+            self.resumeData[sFile] = {}
         else:
             self.resumeHandler(sFile, 2)
 
