@@ -132,12 +132,14 @@ class TransferHandler:
                                   "{}_chunk".format(fileData['rPath'][-1]))
 
         while fileData['IDindex'] < len(fileData['fileID']):
-            await self.telegram.get_messages(self.telegram_channel_id,
-                                             fileData['fileID'][fileData['IDindex']]).download(
-                    file_name=final_file_path if self.now_transmitting == 1 else tmp_file_path,
-                    progress=self.progress_fun,
-                    progress_args=(fileData['IDindex'], len(fileData['fileID']),
-                                   self.s_file)
+            message = await self.telegram.get_messages(self.telegram_channel_id,
+                                                 fileData['fileID'][fileData['IDindex']])
+
+            await message.download(
+                file_name=final_file_path if self.now_transmitting == 1 else tmp_file_path,
+                progress=self.progress_fun,
+                progress_args=(fileData['IDindex'], len(fileData['fileID']),
+                               self.s_file)
             )
 
             if self.should_stop == 2: # force stop
