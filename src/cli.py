@@ -66,7 +66,8 @@ class UserInterface(SessionsHandler):
 
 
     def build_main_widget(self):
-        def update_info(used_sessions_ref, notif_text_ref, transfer_info_ref):
+        def update_info(used_sessions_ref, notif_text_ref,
+                        transfer_info_ref, selected_transfer=0):
             local_used_sessions = used_sessions_ref()
             local_notif_text = notif_text_ref()
             local_transfer_info = transfer_info_ref()
@@ -107,7 +108,9 @@ class UserInterface(SessionsHandler):
                 local_transfer_info.contents.append((urwid.AttrMap(button, None, focus_map='reversed'), pack_option))
 
             # Schedule to update the clock again in one second
-            self.loop.call_later(1, update_info, used_sessions_ref, notif_text_ref, transfer_info_ref)
+            self.loop.call_later(1, update_info, used_sessions_ref,
+                                 notif_text_ref, transfer_info_ref,
+                                 selected_transfer)
 
         title = urwid.Text("Telegram File Manager", align='center')
         used_sessions = urwid.Text('', align='right')
@@ -177,7 +180,7 @@ class UserInterface(SessionsHandler):
 
         for i in self.mainKeyList:
             if key == i['keybind']:
-                self.urwid_loop.widget = i['widget']()
+                self.urwid_loop.widget = i['widget']() # build widget everytime
                 self.urwid_loop.unhandled_input = i['input']
                 break # don't check for other keys
 
