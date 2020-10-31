@@ -146,7 +146,7 @@ class SessionsHandler:
 
             self.fileIO.saveIndexData(sFile, finalData['index'])
 
-            # This could be slow, a faster alternative is bisect.insort,
+            # This could be slow, a faster alternative could be bisect.insort,
             # howewer, I couldn't find a way to sort by an item in dictionary
             self.fileDatabase.append(finalData['fileData'])
             self.fileDatabase.sort(key=itemgetter('rPath'))
@@ -175,7 +175,7 @@ class SessionsHandler:
         if finalData and len(fileData['fileID']) > 1: # finished downloading
             self.fileIO.delResumeData(sFile)
             self.resumeData[sFile] = {}
-        else:
+        elif not finalData: # cancelled
             self.resumeHandler(sFile, 2)
 
         return finalData

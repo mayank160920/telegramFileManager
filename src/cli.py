@@ -19,14 +19,17 @@ def bytesConvert(rawBytes: int) -> str:
         return "{} Bytes".format(rawBytes)
 
 
-class MenuButton(urwid.Button):
+class CustomButton(urwid.Button):
     signals = ['click', 'cancel', 'delete', 'rename']
 
-    def __init__(self, caption, actionDict = None):
+    def __init__(self, caption, actionDict = None, info = None):
         super().__init__(caption)
 
         self._w = urwid.AttrMap(urwid.SelectableIcon(caption), None, 'reversed')
         self.actionDict = actionDict
+
+        if info:
+            self.info = info
 
     def keypress(self, size, key):
         if key in self.actionDict:
@@ -65,9 +68,14 @@ class UserInterface(SessionsHandler):
         self.urwid_loop.run()
 
 
+    def notification(self, inStr: str):
+        self.notifInfo['buffer'] = inStr
+        self.notifInfo['timer'] = 0
+
+
     def build_main_widget(self):
         def update_info(used_sessions_ref, notif_text_ref,
-                        transfer_info_ref, selected_transfer=0):
+                        transfer_info_ref):
             local_used_sessions = used_sessions_ref()
             local_notif_text = notif_text_ref()
             local_transfer_info = transfer_info_ref()
@@ -88,29 +96,53 @@ class UserInterface(SessionsHandler):
                     self.notifInfo['timer'] = 0
                     self.notifInfo['buffer'] = ''
 
-            local_transfer_info.contents = []
+            # Delete finished transfers
+            # There is a chance that the transfer doesn't get deleted when it should
+            # if we add another transfer that uses the same session file
+            # inbetween the runs of this loop
+            # In that case, the label of this button would just get updated along
+            # with the progress update of the other transfers
+            local_transfer_info.contents[:] = [x for x in local_transfer_info.contents
+                if self.transferInfo[x[0].original_widget.info['sFile']]['type']]
 
+            # Update progress, doesn't work
+            # for i, widget in enumerate(local_transfer_info.contents):
+            #     with open("debug.txt", 'w') as f:
+            #         f.write(str(widget)+"\n\n"+ str(i))
+            #     currentTransfer = self.transferInfo[widget[0].original_widget.info['sFile']]
+
+            #     label = "{}\n{}\n{}% - {}".format(
+            #         "Uploading:" if currentTransfer['type'] == 'upload' else "Downloading:",
+            #         '/'.join(currentTransfer['rPath']),
+            #         currentTransfer['progress'], bytesConvert(currentTransfer['size'])
+            #     )
+
+            #     local_transfer_info[i].set_label(label) # the label gets updated but doesn't get shown on screen
+
+            # Add new transfers
             for sFile, info in self.transferInfo.items():
-                if not info['type']: # empty
-                    continue
+                # If the transfer does not exist in local_transfer_info add it
+                if info['type'] and sFile not in [x[0].original_widget.info['sFile']
+                                                  for x in local_transfer_info.contents]:
+                    label = "{}\n{}\n{}".format(
+                        "Uploading:" if info['type'] == 'upload' else "Downloading:",
+                        '/'.join(info['rPath']),
+                        bytesConvert(info['size'])
+                    )
 
-                label = "{}\n{}\n{}% - {}".format(
-                    "Uploading:" if info['type'] == 'upload' else "Downloading:",
-                    '/'.join(info['rPath']),
-                    info['progress'], bytesConvert(info['size'])
-                )
+                    button = CustomButton(label,
+                        {self.fileIO.cfg['keybinds']['cancel']: 'cancel'},
+                        {'sFile': sFile})
 
-                button = MenuButton(label, {self.fileIO.cfg['keybinds']['cancel']: 'cancel'})
-                urwid.connect_signal(button, 'cancel', self.cancel_in_loop,
-                    {'sFile': sFile, 'size': info['size'], 'rPath': info['rPath']}
-                )
+                    urwid.connect_signal(button, 'cancel', self.cancel_in_loop,
+                        {'sFile': sFile, 'size': info['size'], 'rPath': info['rPath']}
+                    )
 
-                local_transfer_info.contents.append((urwid.AttrMap(button, None, focus_map='reversed'), pack_option))
+                    local_transfer_info.contents.append((urwid.AttrMap(button, None, focus_map='reversed'), pack_option))
 
             # Schedule to update the clock again in one second
             self.loop.call_later(1, update_info, used_sessions_ref,
-                                 notif_text_ref, transfer_info_ref,
-                                 selected_transfer)
+                                 notif_text_ref, transfer_info_ref)
 
         title = urwid.Text("Telegram File Manager", align='center')
         used_sessions = urwid.Text('', align='right')
@@ -150,13 +182,12 @@ class UserInterface(SessionsHandler):
         for i in self.fileDatabase:
             totalSize += i['size']
 
-            button = MenuButton("{}  {}".format(
+            button = CustomButton("{}  {}".format(
                                     '/'.join(i['rPath']),
-                                    bytesConvert(i['size'])
-                                ),
-                                {'enter': 'click',
-                                 'd'    : 'delete',
-                                 'r'    : 'rename'})
+                                    bytesConvert(i['size'])),
+                                  {'enter' : 'click',
+                                   'd'     : 'delete',
+                                   'r'     : 'rename'})
 
             urwid.connect_signal(button, 'click', self.download_in_loop,
                 {'rPath': i['rPath'], 'fileID': i['fileID'], 'size': i['size']})
@@ -203,11 +234,11 @@ class UserInterface(SessionsHandler):
         rPath = data['rPath'].edit_text
 
         if not self.freeSessions:
-            self.notifInfo['buffer'] = "All sessions are currently used"
+            self.notification("All sessions are currently used")
         elif not path or not rPath:
-            self.notifInfo['buffer'] = "Please enter all info"
+            self.notification("Please enter all info")
         elif not os.path.isfile(path):
-            self.notifInfo['buffer'] = "There is no file with this path"
+            self.notification("There is no file with this path")
         else:
             self.loop.create_task(self.upload({
                 'rPath'      : rPath.split('/'),
@@ -221,7 +252,7 @@ class UserInterface(SessionsHandler):
 
     def download_in_loop(self, key, data):
         if not self.freeSessions:
-            self.notifInfo['buffer'] = "All sessions are currently used"
+            self.notification("All sessions are currently used")
         else:
             self.loop.create_task(self.download({
                 'rPath'   : data['rPath'],
@@ -236,15 +267,14 @@ class UserInterface(SessionsHandler):
 
     def cancel_in_loop(self, key, data):
         if data['size'] <= self.chunkSize: # no chunks
-            self.notifInfo['buffer'] = "Can't cancel single chunk transfers"
+            self.notification("Can't cancel single chunk transfers")
             return
 
         try:
             self.cancelTransfer(data['sFile'])
-            self.notifInfo['buffer'] = "Transfer {} cancelled".format('/'.join(data['rPath']))
+            self.notification("Transfer {} cancelled".format('/'.join(data['rPath'])))
         except ValueError:
-            self.notifInfo['buffer'] = "Transfer already cancelled"
-
+            self.notification("Transfer already cancelled")
 
 if __name__ == "__main__":
     ui = UserInterface()
