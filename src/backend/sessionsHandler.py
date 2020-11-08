@@ -9,7 +9,7 @@ from backend.transferHandler import TransferHandler
 from backend.fileIO import FileIO
 
 class SessionsHandler:
-    def __init__(self):
+    def __init__(self, local_library: bool = True):
         self.fileIO = FileIO()
 
         self.tHandler = {}
@@ -26,9 +26,10 @@ class SessionsHandler:
             self.transferInfo[str(i)]['size'] = 0
             self.transferInfo[str(i)]['type'] = None
 
+             # initialize all sessions that will be used
             self.tHandler[str(i)] = TransferHandler(
-                self.fileIO.cfg, str(i), self._saveProgress, self._saveResumeData, False
-            ) # initialize all sessions that will be used
+                self.fileIO.cfg, str(i), self._saveProgress,
+                self._saveResumeData, local_library)
 
         self.chunkSize = self.tHandler['1'].chunk_size
 

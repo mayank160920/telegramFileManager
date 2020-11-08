@@ -2,6 +2,7 @@ import urwid
 import os
 import weakref
 import asyncio
+import sys
 
 from backend.sessionsHandler import SessionsHandler
 
@@ -40,7 +41,7 @@ class CustomButton(urwid.Button):
 
 class UserInterface(SessionsHandler):
     def __init__(self):
-        super().__init__()
+        super().__init__(False if (len(sys.argv) > 1 and sys.argv[1] == '1') else True)
 
         self.notifInfo = {'buffer': '', 'timer': 0, 'endTimer': 6}
 
