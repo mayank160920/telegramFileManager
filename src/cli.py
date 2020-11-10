@@ -74,6 +74,21 @@ class UserInterface(SessionsHandler):
         self.notifInfo['timer'] = 0
 
 
+    def change_widget(self, widget, unhandled_input, user_args: dict = None, args = None):
+        """
+        This function creates the given widget giving it the args it received,
+        then it sets urwid_loop's widget and unhandled_input to the ones received
+
+        This function is mainly used by urwid.Button signal callback as it can have only one callback function
+        """
+
+        # Condtionally set argument
+        fun_kwargs = user_args if user_args else {}
+
+        self.urwid_loop.widget = widget(**fun_kwargs)
+        self.urwid_loop.unhandled_input = unhandled_input
+
+
     def build_main_widget(self):
         def update_info(used_sessions_ref, notif_text_ref,
                         transfer_info_ref):
@@ -196,7 +211,13 @@ class UserInterface(SessionsHandler):
                                    'r'     : 'rename'})
 
             urwid.connect_signal(button, 'click', self.download_in_loop,
-                {'rPath': i['rPath'], 'fileID': i['fileID'], 'size': i['size'], 'dPath': dpath})
+                {'rPath': i['rPath'], 'fileID': i['fileID'], 'size': i['size'], 'dPath': dpath}
+            )
+
+            urwid.connect_signal(button, 'rename', self.change_widget,
+                user_args=[self.build_rename_widget, self.handle_keys_null,
+                {'fileData': {'rPath': i['rPath'], 'fileID': i['fileID'], 'size': i['size']}}]
+            )
 
             body.append(urwid.AttrMap(button, None, focus_map='reversed'))
 
@@ -208,6 +229,23 @@ class UserInterface(SessionsHandler):
 
         listBox = urwid.ListBox(urwid.SimpleFocusListWalker(body))
         return urwid.Padding(listBox, left=2, right=2)
+
+
+    def build_rename_widget(self, fileData):
+        newName = urwid.Edit(('boldtext', "Rename {}:\n".format(
+            '/'.join(fileData['rPath']))))
+
+        rename = urwid.Button("Rename")
+        urwid.connect_signal(rename, 'click', self.rename_in_loop, weak_args=[newName], user_args=[fileData])
+
+        cancel = urwid.Button("Cancel", self.return_to_main)
+
+        div = urwid.Divider()
+        pile = urwid.Pile([newName, div,
+                           urwid.AttrMap(rename, None, focus_map='reversed'),
+                           urwid.AttrMap(cancel, None, focus_map='reversed')])
+
+        return urwid.Filler(pile, valign='top')
 
 
     def handle_keys_main(self, key):
@@ -268,6 +306,11 @@ class UserInterface(SessionsHandler):
                 'handled' : 0
             }))
 
+        self.return_to_main()
+
+
+    def rename_in_loop(self, rename_widget, fileData, key):
+        self.renameInDatabase(fileData, rename_widget.edit_text.split('/'))
         self.return_to_main()
 
 
