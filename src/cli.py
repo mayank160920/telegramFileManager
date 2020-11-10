@@ -103,6 +103,7 @@ class UserInterface(SessionsHandler):
             # inbetween the runs of this loop
             # In that case, the label of this button would just get updated along
             # with the progress update of the other transfers
+
             local_transfer_info.contents[:] = [x for x in local_transfer_info.contents
                 if self.transferInfo[x[0].original_widget.info['sFile']]['type']]
 
@@ -177,8 +178,12 @@ class UserInterface(SessionsHandler):
 
 
     def build_download_widget(self):
-        body = [urwid.Divider()]
         totalSize = 0
+
+        dpath = urwid.Edit(('boldtext', "Download path: "),
+            os.path.join(self.fileIO.cfg['paths']['data_path'], 'downloads'))
+
+        body = [dpath, urwid.Divider()]
 
         for i in self.fileDatabase:
             totalSize += i['size']
@@ -191,7 +196,7 @@ class UserInterface(SessionsHandler):
                                    'r'     : 'rename'})
 
             urwid.connect_signal(button, 'click', self.download_in_loop,
-                {'rPath': i['rPath'], 'fileID': i['fileID'], 'size': i['size']})
+                {'rPath': i['rPath'], 'fileID': i['fileID'], 'size': i['size'], 'dPath': dpath})
 
             body.append(urwid.AttrMap(button, None, focus_map='reversed'))
 
@@ -257,7 +262,7 @@ class UserInterface(SessionsHandler):
         else:
             self.loop.create_task(self.download({
                 'rPath'   : data['rPath'],
-                'dPath'   : '', # TODO: ask user about download path
+                'dPath'   : data['dPath'].edit_text,
                 'fileID'  : data['fileID'],
                 'size'    : data['size'],
                 'handled' : 0
