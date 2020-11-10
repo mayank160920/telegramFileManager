@@ -74,7 +74,7 @@ class UserInterface(SessionsHandler):
         self.notifInfo['timer'] = 0
 
 
-    def change_widget(self, widget, unhandled_input, user_args: dict = None, args = None):
+    def change_widget(self, widget, unhandled_input, user_args: dict = None, key = None):
         """
         This function creates the given widget giving it the args it received,
         then it sets urwid_loop's widget and unhandled_input to the ones received
@@ -152,7 +152,7 @@ class UserInterface(SessionsHandler):
                         {'sFile': sFile})
 
                     urwid.connect_signal(button, 'cancel', self.cancel_in_loop,
-                        {'sFile': sFile, 'size': info['size'], 'rPath': info['rPath']}
+                        user_args=[sFile, info['size'], info['rPath']]
                     )
 
                     local_transfer_info.contents.append((urwid.AttrMap(button, None, focus_map='reversed'), pack_option))
@@ -180,8 +180,10 @@ class UserInterface(SessionsHandler):
         fpath = urwid.Edit(('boldtext', "File Path:\n"))
         rpath = urwid.Edit(('boldtext', "Relative Path:\n"))
 
-        upload = urwid.Button("Upload", self.upload_in_loop,
-            {'path': fpath, 'rPath': rpath})
+        upload = urwid.Button("Upload")
+        urwid.connect_signal(upload, 'click', self.upload_in_loop,
+            weak_args=[fpath, rpath])
+
         cancel = urwid.Button("Cancel", self.return_to_main)
 
         div = urwid.Divider()
@@ -211,7 +213,8 @@ class UserInterface(SessionsHandler):
                                    'r'     : 'rename'})
 
             urwid.connect_signal(button, 'click', self.download_in_loop,
-                {'rPath': i['rPath'], 'fileID': i['fileID'], 'size': i['size'], 'dPath': dpath}
+                weak_args=[dpath],
+                user_args=[i['rPath'], i['fileID'], i['size']]
             )
 
             urwid.connect_signal(button, 'rename', self.change_widget,
@@ -273,36 +276,36 @@ class UserInterface(SessionsHandler):
         self.urwid_loop.unhandled_input = self.handle_keys_main
 
 
-    def upload_in_loop(self, key, data):
-        path = data['path'].edit_text
-        rPath = data['rPath'].edit_text
+    def upload_in_loop(self, path, rPath, key):
+        path_str = path.edit_text
+        rPath_str = rPath.edit_text
 
         if not self.freeSessions:
             self.notification("All sessions are currently used")
-        elif not path or not rPath:
+        elif not path_str or not rPath_str:
             self.notification("Please enter all info")
-        elif not os.path.isfile(path):
+        elif not os.path.isfile(path_str):
             self.notification("There is no file with this path")
         else:
             self.loop.create_task(self.upload({
-                'rPath'      : rPath.split('/'),
-                'path'       : path,
-                'size'       : os.path.getsize(path),
+                'rPath'      : rPath_str.split('/'),
+                'path'       : path_str,
+                'size'       : os.path.getsize(path_str),
                 'handled'    : 0
             }))
 
         self.return_to_main()
 
 
-    def download_in_loop(self, key, data):
+    def download_in_loop(self, dPath, rPath, fileID, size, key):
         if not self.freeSessions:
             self.notification("All sessions are currently used")
         else:
             self.loop.create_task(self.download({
-                'rPath'   : data['rPath'],
-                'dPath'   : data['dPath'].edit_text,
-                'fileID'  : data['fileID'],
-                'size'    : data['size'],
+                'rPath'   : rPath,
+                'dPath'   : dPath.edit_text,
+                'fileID'  : fileID,
+                'size'    : size,
                 'handled' : 0
             }))
 
@@ -314,14 +317,14 @@ class UserInterface(SessionsHandler):
         self.return_to_main()
 
 
-    def cancel_in_loop(self, key, data):
-        if data['size'] <= self.chunkSize: # no chunks
+    def cancel_in_loop(self, sFile, size, rPath, key):
+        if size <= self.chunkSize: # no chunks
             self.notification("Can't cancel single chunk transfers")
             return
 
         try:
-            self.cancelTransfer(data['sFile'])
-            self.notification("Transfer {} cancelled".format('/'.join(data['rPath'])))
+            self.cancelTransfer(sFile)
+            self.notification("Transfer {} cancelled".format('/'.join(rPath)))
         except ValueError:
             self.notification("Transfer already cancelled")
 
