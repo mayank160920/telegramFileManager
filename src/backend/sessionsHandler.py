@@ -97,7 +97,7 @@ class SessionsHandler:
             self.fileIO.delResumeData(sFile)
 
 
-    def cleanTg(self, IDList: list = None):
+    async def cleanTg(self, IDList: list = None):
         sFile = self._useSession()
         mode = 2
 
@@ -107,13 +107,13 @@ class SessionsHandler:
                 for j in i['fileID']:
                     IDlist.append(j)
 
-        self.tHandler[sFile].deleteUseless(IDList, mode)
+        await self.tHandler[sFile].deleteUseless(IDList, mode)
         self._freeSession(sFile)
 
 
-    def deleteInDatabase(self, fileData: dict):
+    async def deleteInDatabase(self, fileData: dict):
         self.fileDatabase.remove(fileData)
-        self.cleanTg(fileData['fileID'])
+        await self.cleanTg(fileData['fileID'])
         self.fileIO.updateDatabase(self.fileDatabase)
 
 

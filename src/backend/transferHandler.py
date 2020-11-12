@@ -176,22 +176,22 @@ class TransferHandler:
         return 1
 
 
-    def deleteUseless(self, IDList: list, mode: int = 1):
-        # mode is 1 for enerything except IDList,
+    async def deleteUseless(self, IDList: list, mode: int = 1):
+        # mode is 1 for everything except IDList,
         #         2 for only IDList
         deletedList = []
 
         if mode == 1:
-            for tFile in self.telegram.iter_history(self.telegram_channel_id):
+            async for tFile in self.telegram.iter_history(self.telegram_channel_id):
                 if (tFile.media) and (not tFile.message_id in IDList):
                     deletedList.append(tFile.message_id)
 
             if deletedList:
-                self.telegram.delete_messages(self.telegram_channel_id,
-                                              deletedList)
+                await self.telegram.delete_messages(self.telegram_channel_id,
+                                                    deletedList)
 
         elif mode == 2:
-            self.telegram.delete_messages(self.telegram_channel_id, IDList)
+            await self.telegram.delete_messages(self.telegram_channel_id, IDList)
 
         return deletedList
 

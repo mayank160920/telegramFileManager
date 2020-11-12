@@ -217,9 +217,16 @@ class UserInterface(SessionsHandler):
                 user_args=[i['rPath'], i['fileID'], i['size']]
             )
 
+            fileData_tmp = {'fileData': {'rPath': i['rPath'], 'fileID': i['fileID'], 'size': i['size']}}
+
             urwid.connect_signal(button, 'rename', self.change_widget,
                 user_args=[self.build_rename_widget, self.handle_keys_null,
-                {'fileData': {'rPath': i['rPath'], 'fileID': i['fileID'], 'size': i['size']}}]
+                           fileData_tmp]
+            )
+
+            urwid.connect_signal(button, 'delete', self.change_widget,
+                user_args=[self.build_delete_widget, self.handle_keys_null,
+                           fileData_tmp]
             )
 
             body.append(urwid.AttrMap(button, None, focus_map='reversed'))
@@ -246,6 +253,25 @@ class UserInterface(SessionsHandler):
         div = urwid.Divider()
         pile = urwid.Pile([newName, div,
                            urwid.AttrMap(rename, None, focus_map='reversed'),
+                           urwid.AttrMap(cancel, None, focus_map='reversed')])
+
+        return urwid.Filler(pile, valign='top')
+
+
+    def build_delete_widget(self, fileData):
+        confirm_text = urwid.Text(('boldtext', "Are you sure you want to delete {}?".format(
+            '/'.join(fileData['rPath']))))
+
+        delete = urwid.Button("Delete")
+        urwid.connect_signal(delete, 'click', self.delete_in_loop, user_args=[fileData])
+
+        cancel = urwid.Button("Cancel", self.return_to_main)
+
+        div = urwid.Divider()
+        pile = urwid.Pile([confirm_text, div,
+                           urwid.AttrMap(cancel, None, focus_map='reversed'),
+                           urwid.AttrMap(cancel, None, focus_map='reversed'),
+                           urwid.AttrMap(delete, None, focus_map='reversed'),
                            urwid.AttrMap(cancel, None, focus_map='reversed')])
 
         return urwid.Filler(pile, valign='top')
@@ -314,6 +340,11 @@ class UserInterface(SessionsHandler):
 
     def rename_in_loop(self, rename_widget, fileData, key):
         self.renameInDatabase(fileData, rename_widget.edit_text.split('/'))
+        self.return_to_main()
+
+
+    def delete_in_loop(self, fileData, key):
+        self.loop.create_task(self.deleteInDatabase(fileData))
         self.return_to_main()
 
 
