@@ -6,8 +6,10 @@ package_path = $(shell python -c "import pyrogram;import os;print(os.path.dirnam
 # this also needs to be modified inside tests.py
 tmp_path = ~/.tmp
 
+CFLAGS = -O2 -std=c99 -fPIC -shared
+
 transferHandler_extern.so: src/backend/transferHandler_extern.c
-	$(CC) -std=c99 -fPIC -shared -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^
 
 bundle: clean transferHandler_extern.so
 	pyinstaller src/cli.py --add-data $(package_path)/mime.types:pyrogram \
