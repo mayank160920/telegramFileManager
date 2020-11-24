@@ -6,7 +6,6 @@ import sys
 
 from backend.sessionsHandler import SessionsHandler
 
-
 def bytesConvert(rawBytes: int) -> str:
     if   rawBytes >= 16**10:
         return "{} TiB".format(round(rawBytes/16**10, 2))
@@ -39,6 +38,13 @@ class CustomButton(urwid.Button):
             return key
 
 
+class CustomColumns(urwid.Columns):
+    def __init__(self, widget_list, dividechars = 0, info = None):
+        super().__init__(widget_list, dividechars)
+        if info:
+            self.info = info
+
+
 class UserInterface(SessionsHandler):
     def __init__(self):
         super().__init__(False if (len(sys.argv) > 1 and sys.argv[1] == '1') else True)
@@ -46,6 +52,8 @@ class UserInterface(SessionsHandler):
         self.notifInfo = {'buffer': '', 'timer': 0, 'endTimer': 6}
 
         self.loop = asyncio.get_event_loop()
+
+        self.loop.create_task(self.initSessions())
 
         self.main_widget = self.build_main_widget()
 
@@ -55,7 +63,11 @@ class UserInterface(SessionsHandler):
 
                             {'keybind' : self.fileIO.cfg['keybinds']['download'],
                              'widget' : self.build_download_widget,
-                             'input' : self.handle_keys_download}]
+                             'input' : self.handle_keys_download},
+
+                            {'keybind' : self.fileIO.cfg['keybinds']['resume'],
+                             'widget' : self.build_resume_widget,
+                             'input' : self.handle_keys_null}]
 
         palette = [('boldtext', 'default,bold', 'default', 'bold'), ('reversed', 'standout', '')]
 
@@ -66,7 +78,6 @@ class UserInterface(SessionsHandler):
             unhandled_input=self.handle_keys_main,
             event_loop=urwid.AsyncioEventLoop(loop=self.loop)
         )
-        self.urwid_loop.run()
 
 
     def notification(self, inStr: str):
@@ -82,7 +93,7 @@ class UserInterface(SessionsHandler):
         This function is mainly used by urwid.Button signal callback as it can have only one callback function
         """
 
-        # Condtionally set argument
+        # Conditionally set argument
         fun_kwargs = user_args if user_args else {}
 
         self.urwid_loop.widget = widget(**fun_kwargs)
@@ -120,26 +131,24 @@ class UserInterface(SessionsHandler):
             # with the progress update of the other transfers
 
             local_transfer_info.contents[:] = [x for x in local_transfer_info.contents
-                if self.transferInfo[x[0].original_widget.info['sFile']]['type']]
+                if self.transferInfo[x[0].info['sFile']]['type']]
 
             # Update progress, doesn't work
-            # for i, widget in enumerate(local_transfer_info.contents):
-            #     with open("debug.txt", 'w') as f:
-            #         f.write(str(widget)+"\n\n"+ str(i))
-            #     currentTransfer = self.transferInfo[widget[0].original_widget.info['sFile']]
+            #for i, widget in enumerate(local_transfer_info.contents):
+            #    currentTransfer = self.transferInfo[widget[0].info['sFile']]
 
-            #     label = "{}\n{}\n{}% - {}".format(
-            #         "Uploading:" if currentTransfer['type'] == 'upload' else "Downloading:",
-            #         '/'.join(currentTransfer['rPath']),
-            #         currentTransfer['progress'], bytesConvert(currentTransfer['size'])
-            #     )
+            #    label = "{}\n{}\n{}% - {}".format(
+            #        "Uploading:" if currentTransfer['type'] == 'upload' else "Downloading:",
+            #        '/'.join(currentTransfer['rPath']),
+            #        currentTransfer['progress'], bytesConvert(currentTransfer['size'])
+            #    )
 
-            #     local_transfer_info[i].set_label(label) # the label gets updated but doesn't get shown on screen
+            #    local_transfer_info[i].set_label(label) # the label gets updated but doesn't get shown on screen
 
             # Add new transfers
             for sFile, info in self.transferInfo.items():
                 # If the transfer does not exist in local_transfer_info add it
-                if info['type'] and sFile not in [x[0].original_widget.info['sFile']
+                if info['type'] and sFile not in [x[0].info['sFile']
                                                   for x in local_transfer_info.contents]:
                     label = "{}\n{}\n{}".format(
                         "Uploading:" if info['type'] == 'upload' else "Downloading:",
@@ -155,7 +164,7 @@ class UserInterface(SessionsHandler):
                         user_args=[sFile, info['size'], info['rPath']]
                     )
 
-                    local_transfer_info.contents.append((urwid.AttrMap(button, None, focus_map='reversed'), pack_option))
+                    local_transfer_info.contents.append((button, pack_option))
 
             # Schedule to update the clock again in one second
             self.loop.call_later(1, update_info, used_sessions_ref,
@@ -191,7 +200,7 @@ class UserInterface(SessionsHandler):
                            urwid.AttrMap(upload, None, focus_map='reversed'),
                            urwid.AttrMap(cancel, None, focus_map='reversed')])
 
-        return urwid.Filler(pile, valign='top')
+        return urwid.Filler(pile, 'top')
 
 
     def build_download_widget(self):
@@ -229,7 +238,7 @@ class UserInterface(SessionsHandler):
                            fileData_tmp]
             )
 
-            body.append(urwid.AttrMap(button, None, focus_map='reversed'))
+            body.append(button)
 
         body.insert(0, urwid.Text(
             ('reversed', "Enter to download, d to delete, r to rename - {} Total".format(
@@ -239,6 +248,69 @@ class UserInterface(SessionsHandler):
 
         listBox = urwid.ListBox(urwid.SimpleFocusListWalker(body))
         return urwid.Padding(listBox, left=2, right=2)
+
+
+    def build_resume_widget(self):
+        """
+        Widget that shows unfinished transfers and prompts the user
+        to either resume, ignore or delete each of the transfers.
+
+        When one of these actions is selected for a transfer, that
+        transfer gets removed from the widget so that the user can't
+        select multiple actions for a transfer.
+        """
+
+        title = urwid.Button(('boldtext', "Cancelled transfers:"))
+        div = urwid.Divider()
+
+        pile = urwid.Pile([title, div])
+        pack_option = pile.options('pack', None)
+
+        for sFile, info in self.resumeData.items():
+            if info:
+                # has resume data that was ignored for later
+                transfer_name = urwid.Text("Session {}, '{}' - {}:".format(sFile,
+                    '/'.join(info['rPath']), bytesConvert(info['size'])))
+
+                resume = urwid.Button("Resume")
+                urwid.connect_signal(resume, 'click', self.resume_in_loop,
+                                     weak_args=[pile],
+                                     user_args=[sFile, 1]
+                )
+
+                ignore = urwid.Button("Ignore")
+                urwid.connect_signal(ignore, 'click', self.resume_in_loop,
+                                     weak_args=[pile],
+                                     user_args=[sFile, 2]
+                )
+
+                delete = urwid.Button("Delete")
+                urwid.connect_signal(delete, 'click', self.resume_in_loop,
+                                     weak_args=[pile],
+                                     user_args=[sFile, 3]
+                )
+
+                option_pile = urwid.Pile([urwid.AttrMap(resume, None, focus_map='reversed'),
+                                          urwid.AttrMap(ignore, None, focus_map='reversed'),
+                                          urwid.AttrMap(delete, None, focus_map='reversed')])
+
+                transfer_columns = CustomColumns([('weight', 4, transfer_name),
+                                                  ('weight', 1, option_pile)], 1,
+                                                 {'sFile': sFile})
+
+                pile.contents.append((transfer_columns, pack_option))
+                pile.contents.append((div, pack_option))
+
+        if len(pile.contents) == 2:
+            self.notification("No resume information")
+            # the function that called this function always expects it to
+            # return a widget, that's why we can't use return_to_main
+            self.urwid_loop.unhandled_input = self.handle_keys_main
+            return self.main_widget
+
+        pile.contents.append((urwid.Button("Done", self.return_to_main), pack_option))
+
+        return urwid.Filler(pile, 'top')
 
 
     def build_rename_widget(self, fileData):
@@ -255,7 +327,7 @@ class UserInterface(SessionsHandler):
                            urwid.AttrMap(rename, None, focus_map='reversed'),
                            urwid.AttrMap(cancel, None, focus_map='reversed')])
 
-        return urwid.Filler(pile, valign='top')
+        return urwid.Filler(pile, 'top')
 
 
     def build_delete_widget(self, fileData):
@@ -274,18 +346,17 @@ class UserInterface(SessionsHandler):
                            urwid.AttrMap(delete, None, focus_map='reversed'),
                            urwid.AttrMap(cancel, None, focus_map='reversed')])
 
-        return urwid.Filler(pile, valign='top')
+        return urwid.Filler(pile, 'top')
 
 
     def handle_keys_main(self, key):
         if key == 'esc':
-            self.endSessions()
             raise urwid.ExitMainLoop
 
         for i in self.mainKeyList:
             if key == i['keybind']:
-                self.urwid_loop.widget = i['widget']() # build widget everytime
                 self.urwid_loop.unhandled_input = i['input']
+                self.urwid_loop.widget = i['widget']() # build widget everytime
                 break # don't check for other keys
 
 
@@ -314,10 +385,11 @@ class UserInterface(SessionsHandler):
             self.notification("There is no file with this path")
         else:
             self.loop.create_task(self.upload({
-                'rPath'      : rPath_str.split('/'),
-                'path'       : path_str,
-                'size'       : os.path.getsize(path_str),
-                'handled'    : 0
+                'rPath'   : rPath_str.split('/'),
+                'path'    : path_str,
+                'size'    : os.path.getsize(path_str),
+                'type'    : 'upload',
+                'handled' : 0
             }))
 
         self.return_to_main()
@@ -332,10 +404,20 @@ class UserInterface(SessionsHandler):
                 'dPath'   : dPath.edit_text,
                 'fileID'  : fileID,
                 'size'    : size,
+                'type'    : 'download',
                 'handled' : 0
             }))
 
         self.return_to_main()
+
+
+    def resume_in_loop(self, pile_widget, sFile, selected, key):
+        self.loop.create_task(self.resumeHandler(sFile, selected))
+
+        # Remove current transfer from pile_widget but don't delete other widgets
+        pile_widget.contents[:] = [x for x in pile_widget.contents
+            if type(x[0]) != CustomColumns or x[0].info['sFile'] != sFile]
+        pile_widget.focus_position = 0
 
 
     def rename_in_loop(self, rename_widget, fileData, key):
@@ -351,13 +433,13 @@ class UserInterface(SessionsHandler):
     def cancel_in_loop(self, sFile, size, rPath, key):
         if size <= self.chunkSize: # no chunks
             self.notification("Can't cancel single chunk transfers")
-            return
-
-        try:
-            self.cancelTransfer(sFile)
-            self.notification("Transfer {} cancelled".format('/'.join(rPath)))
-        except ValueError:
+        elif self.tHandler[sFile].should_stop:
             self.notification("Transfer already cancelled")
+        else:
+            asyncio.create_task(self.cancelTransfer(sFile))
+            self.notification("Transfer {} cancelled".format('/'.join(rPath)))
+
 
 if __name__ == "__main__":
     ui = UserInterface()
+    ui.urwid_loop.run()

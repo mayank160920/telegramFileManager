@@ -26,12 +26,17 @@ class SessionsHandler:
             self.transferInfo[str(i)]['size'] = 0
             self.transferInfo[str(i)]['type'] = None
 
-             # initialize all sessions that will be used
+            # initialize all sessions that will be used
             self.tHandler[str(i)] = TransferHandler(
                 self.fileIO.cfg, str(i), self._saveProgress,
                 self._saveResumeData, local_library)
 
         self.chunkSize = self.tHandler['1'].chunk_size
+
+
+    async def initSessions(self):
+        for i in range(1, int(self.fileIO.cfg['telegram']['max_sessions'])+1):
+            await self.tHandler[str(i)].initSession()
 
 
     def _useSession(self, sFile: str = None):
@@ -68,7 +73,7 @@ class SessionsHandler:
         self.fileIO.saveResumeData(fileData, sFile)
 
 
-    def resumeHandler(self, sFile: str, selected: int = 0):
+    async def resumeHandler(self, sFile: str, selected: int = 0):
         if not int(sFile) in range(1, int(self.fileIO.cfg['telegram']['max_sessions'])+1):
             raise IndexError("sFile should be between 1 and {}.".format(int(self.fileIO.cfg['telegram']['max_sessions'])))
 
@@ -78,7 +83,11 @@ class SessionsHandler:
                                                 # the session was already removed
 
             self.resumeData[sFile]['handled'] = 0
-            self.transferInThread(self.resumeData[sFile], sFile)
+
+            if self.resumeData[sFile]['type'] == 'upload':
+                await self.upload(self.resumeData[sFile], sFile)
+            elif self.resumeData[sFile]['type'] == 'download':
+                await self.download(self.resumeData[sFile], sFile)
 
         elif selected == 2: # Ignore for now
             if self.resumeData[sFile]['handled'] != 1:
@@ -88,7 +97,7 @@ class SessionsHandler:
 
         elif selected == 3: # delete the resume file
             if self.resumeData[sFile]['type'] == 'upload':
-                self.cleanTg(self.resumeData[sFile]['fileID'])
+                await self.cleanTg(self.resumeData[sFile]['fileID'])
 
             if self.resumeData[sFile]['handled'] == 1:
                 self._freeSession(sFile)
@@ -154,8 +163,8 @@ class SessionsHandler:
 
             self.fileIO.updateDatabase(self.fileDatabase)
 
-        else:
-            self.resumeHandler(sFile, 2)
+        else: # cancelled
+            await self.resumeHandler(sFile, 2)
 
 
     async def download(self, fileData: dict, sFile: str = None):
@@ -177,21 +186,13 @@ class SessionsHandler:
             self.fileIO.delResumeData(sFile)
             self.resumeData[sFile] = {}
         elif not finalData: # cancelled
-            self.resumeHandler(sFile, 2)
+            await self.resumeHandler(sFile, 2)
 
         return finalData
 
 
-    def cancelTransfer(self, sFile: str):
+    async def cancelTransfer(self, sFile: str):
         if not int(sFile) in range(1, int(self.fileIO.cfg['telegram']['max_sessions'])+1):
             raise IndexError("sFile should be between 1 and {}.".format(int(self.fileIO.cfg['telegram']['max_sessions'])))
 
-        if self.tHandler[sFile].should_stop:
-            raise ValueError("Transfer already cancelled.")
-
-        self.tHandler[sFile].stop(1)
-
-
-    def endSessions(self):
-        for i in range(1, int(self.fileIO.cfg['telegram']['max_sessions'])+1):
-            self.tHandler[str(i)].endSession()
+        await self.tHandler[sFile].stop(1)

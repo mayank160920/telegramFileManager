@@ -58,10 +58,14 @@ class TransferHandler:
 
         self.telegram = Client(path.join(self.data_path, "a{}".format(s_file)),
                                config['telegram']['api_id'], config['telegram']['api_hash'])
+
+
+    async def initSession(self):
         # Connect to telegram servers when starting
         # So that if we are missing any sessions it will prompt for login
         # Before starting the UI
-        self.telegram.start()
+        async with self.telegram:
+            pass
 
 
     async def uploadFiles(self, fileData: dict):
@@ -80,16 +84,17 @@ class TransferHandler:
                     self.mul_chunk_size, 1024
                 )
 
-            msg_obj = await self.telegram.send_document(
-                    self.telegram_channel_id,
-                    copied_file_path if self.now_transmitting == 2 else \
-                        fileData['path'],
-                    file_name = None if self.now_transmitting == 2 else \
-                        "{}_{}".format(self.s_file, fileData['index']),
-                    progress=self.progress_fun,
-                    progress_args=(len(fileData['fileID']), tot_chunks,
-                                   self.s_file)
-            )
+            async with self.telegram:
+                msg_obj = await self.telegram.send_document(
+                        self.telegram_channel_id,
+                        copied_file_path if self.now_transmitting == 2 else \
+                            fileData['path'],
+                        file_name = None if self.now_transmitting == 2 else \
+                            "{}_{}".format(self.s_file, fileData['index']),
+                        progress=self.progress_fun,
+                        progress_args=(len(fileData['fileID']), tot_chunks,
+                                       self.s_file)
+                )
 
             if self.now_transmitting == 2:
                 await self.asyncFiles.remove(copied_file_path)
@@ -132,15 +137,16 @@ class TransferHandler:
                                   "{}_chunk".format(fileData['rPath'][-1]))
 
         while fileData['IDindex'] < len(fileData['fileID']):
-            message = await self.telegram.get_messages(self.telegram_channel_id,
-                                                 fileData['fileID'][fileData['IDindex']])
+            async with self.telegram:
+                message = await self.telegram.get_messages(self.telegram_channel_id,
+                                            fileData['fileID'][fileData['IDindex']])
 
-            await message.download(
-                file_name=final_file_path if self.now_transmitting == 1 else tmp_file_path,
-                progress=self.progress_fun,
-                progress_args=(fileData['IDindex'], len(fileData['fileID']),
-                               self.s_file)
-            )
+                await message.download(
+                    file_name=final_file_path if self.now_transmitting == 1 else tmp_file_path,
+                    progress=self.progress_fun,
+                    progress_args=(fileData['IDindex'], len(fileData['fileID']),
+                                   self.s_file)
+                )
 
             if self.should_stop == 2: # force stop
                 break
@@ -181,33 +187,31 @@ class TransferHandler:
         #         2 for only IDList
         deletedList = []
 
-        if mode == 1:
-            async for tFile in self.telegram.iter_history(self.telegram_channel_id):
-                if (tFile.media) and (not tFile.message_id in IDList):
-                    deletedList.append(tFile.message_id)
+        async with self.telegram:
+            if mode == 1:
+                async for tFile in self.telegram.iter_history(self.telegram_channel_id):
+                    if (tFile.media) and (not tFile.message_id in IDList):
+                        deletedList.append(tFile.message_id)
 
-            if deletedList:
-                await self.telegram.delete_messages(self.telegram_channel_id,
-                                                    deletedList)
+                if deletedList:
+                    await self.telegram.delete_messages(self.telegram_channel_id,
+                                                        deletedList)
 
-        elif mode == 2:
-            await self.telegram.delete_messages(self.telegram_channel_id, IDList)
+            elif mode == 2:
+                await self.telegram.delete_messages(self.telegram_channel_id, IDList)
 
         return deletedList
 
-    def stop(self, stop_type: int):
-        #Values of stop_type:
-        #1 - Wait until the current chunk transfer ended and appended
-        #2 - Cancel transfer, will still wait for appending to finish
-        if not stop_type in [1, 2]:
+    async def stop(self, stop_type: int):
+        # Values of stop_type:
+        # 1 - Wait until the current chunk transfer ended and appended
+        # 2 - Cancel transfer, will still wait for appending to finish
+        if not stop_type in (1, 2):
             raise IndexError("stop_type should be 1 or 2.")
         if self.now_transmitting == 1 and stop_type == 1:
             raise IndexError("stop_type can't be 1 when transmitting single chunk files.")
 
         self.should_stop = stop_type
-        if stop_type == 2: #force stop
-            self.telegram.stop_transmission()
-
-
-    def endSession(self):
-        self.telegram.stop()
+        if stop_type == 2: # force stop
+            async with self.telegram:
+                await self.telegram.stop_transmission()
