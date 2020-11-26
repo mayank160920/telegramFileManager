@@ -156,7 +156,7 @@ class TransferHandler:
             if self.now_transmitting == 2:
                 await self.asyncFiles.concatFiles(
                     tmp_file_path,
-                    copied_file_path,
+                    final_file_path,
                     1024
                 )
                 await self.asyncFiles.remove(tmp_file_path)
