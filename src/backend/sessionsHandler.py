@@ -19,7 +19,10 @@ class SessionsHandler:
         self.resumeData = self.fileIO.loadResumeData()
 
         for i in range(1, int(self.fileIO.cfg['telegram']['max_sessions'])+1):
-            self.freeSessions.append(str(i)) # all sessions are free by default
+            # set session as free only if there is no resume info for it
+            if not self.resumeData[str(i)]:
+                self.freeSessions.append(str(i))
+
             self.transferInfo[str(i)] = {}
             self.transferInfo[str(i)]['rPath'] = ''
             self.transferInfo[str(i)]['progress'] = 0
@@ -78,29 +81,21 @@ class SessionsHandler:
             raise IndexError("sFile should be between 1 and {}.".format(int(self.fileIO.cfg['telegram']['max_sessions'])))
 
         if selected == 1: # Finish the transfer
-            if self.resumeData[sFile]['handled'] != 1:
-                self.freeSessions.remove(sFile) # if it was handled as ignore
-                                                # the session was already removed
-
-            self.resumeData[sFile]['handled'] = 0
-
             if self.resumeData[sFile]['type'] == 'upload':
                 await self.upload(self.resumeData[sFile], sFile)
             elif self.resumeData[sFile]['type'] == 'download':
                 await self.download(self.resumeData[sFile], sFile)
 
         elif selected == 2: # Ignore for now
-            if self.resumeData[sFile]['handled'] != 1:
-                self.resumeData[sFile]['handled'] = 1
-                self.freeSessions.remove(sFile)
-                # prevent using this session for transfer
+            # as the session is removed both after the end of a cancelled transfer
+            # and at the beginning of the program this doesn't need to do anything
+            pass
 
         elif selected == 3: # delete the resume file
             if self.resumeData[sFile]['type'] == 'upload':
                 await self.cleanTg(self.resumeData[sFile]['fileID'])
 
-            if self.resumeData[sFile]['handled'] == 1:
-                self._freeSession(sFile)
+            self._freeSession(sFile)
 
             self.resumeData[sFile] = {} # not possible to resume later
             self.fileIO.delResumeData(sFile)

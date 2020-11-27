@@ -178,7 +178,7 @@ class UserInterface(SessionsHandler):
         pack_option = transfer_info.options('pack', None)
         div = urwid.Divider()
 
-        pile = urwid.Pile([title, used_sessions, urwid.Columns([useless_button, ('weight', 4, notif_text)], 1), div, transfer_info])
+        pile = urwid.Pile([title, used_sessions, urwid.Columns([useless_button, ('weight', 3, notif_text)], 1), div, transfer_info])
 
         update_info(weakref.ref(used_sessions), weakref.ref(notif_text), weakref.ref(transfer_info))
 
@@ -388,8 +388,7 @@ class UserInterface(SessionsHandler):
                 'rPath'   : rPath_str.split('/'),
                 'path'    : path_str,
                 'size'    : os.path.getsize(path_str),
-                'type'    : 'upload',
-                'handled' : 0
+                'type'    : 'upload'
             }))
 
         self.return_to_main()
@@ -404,8 +403,7 @@ class UserInterface(SessionsHandler):
                 'dPath'   : dPath.edit_text,
                 'fileID'  : fileID,
                 'size'    : size,
-                'type'    : 'download',
-                'handled' : 0
+                'type'    : 'download'
             }))
 
         self.return_to_main()
