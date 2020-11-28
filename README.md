@@ -3,7 +3,6 @@ File Manager that uses Telegram servers for storing files.
 Powered by [pyrogram](https://github.com/pyrogram/pyrogram).
 This program has an advanced command-line interface, ability to transfer files
 larger than 2G and more!
-## This branch is still a WIP, use the master branch instead
 
 ## Features
 * Ability to show downloading and uploading progress
