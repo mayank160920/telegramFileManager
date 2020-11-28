@@ -142,7 +142,6 @@ class SessionsHandler:
         finalData = await self.tHandler[sFile].uploadFiles(fileData)
 
         self.transferInfo[sFile]['type'] = None # not transferring anything
-        self._freeSession(sFile)
 
         if finalData: # Finished uploading
             if len(finalData['fileData']['fileID']) > 1: # not single chunk
@@ -157,6 +156,7 @@ class SessionsHandler:
             self.fileDatabase.sort(key=itemgetter('rPath'))
 
             self.fileIO.updateDatabase(self.fileDatabase)
+            self._freeSession(sFile)
 
         else: # cancelled
             await self.resumeHandler(sFile, 2)
@@ -176,11 +176,11 @@ class SessionsHandler:
         finalData = await self.tHandler[sFile].downloadFiles(fileData)
 
         self.transferInfo[sFile]['type'] = None
-        self._freeSession(sFile)
 
         if finalData and len(fileData['fileID']) > 1: # finished downloading
             self.fileIO.delResumeData(sFile)
             self.resumeData[sFile] = {}
+            self._freeSession(sFile)
         elif not finalData: # cancelled
             await self.resumeHandler(sFile, 2)
 
