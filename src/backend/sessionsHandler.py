@@ -177,11 +177,13 @@ class SessionsHandler:
 
         self.transferInfo[sFile]['type'] = None
 
-        if finalData and len(fileData['fileID']) > 1: # finished downloading
-            self.fileIO.delResumeData(sFile)
-            self.resumeData[sFile] = {}
+        if finalData: # finished downloading
+            if len(fileData['fileID']) > 1:
+                self.fileIO.delResumeData(sFile)
+                self.resumeData[sFile] = {}
             self._freeSession(sFile)
-        elif not finalData: # cancelled
+
+        else: # cancelled
             await self.resumeHandler(sFile, 2)
 
         return finalData
