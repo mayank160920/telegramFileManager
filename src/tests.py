@@ -4,9 +4,10 @@
 # them !!!
 
 from os import path
-from backend.transferHandler import TransferHandler
 import sys
+
 import config as cfg
+from backend.transferHandler import TransferHandler
 
 data_path = ".."
 tmp_path = path.join(path.expanduser('~'), '.tmp')

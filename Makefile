@@ -6,14 +6,19 @@ package_path = $(shell python -c "import pyrogram;import os;print(os.path.dirnam
 # this also needs to be modified inside tests.py
 tmp_path = ~/.tmp
 
+CFLAGS = -O2 -std=c99 -fPIC -shared
+
 transferHandler_extern.so: src/backend/transferHandler_extern.c
-	$(CC) -std=c99 -fPIC -shared -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^
 
 bundle: clean transferHandler_extern.so
-	pyinstaller src/cli.py --add-data $(package_path)/client/ext/mime.types:pyrogram/client/ext --add-binary transferHandler_extern.so:. --onefile
+	pyinstaller src/cli.py --add-data $(package_path)/mime.types:pyrogram \
+		--add-data $(package_path)/storage/schema.sql:pyrogram/storage \
+		--add-binary transferHandler_extern.so:. --onefile
 
 clean:
-	rm -rf src/__pycache__ src/backend/__pycache__ transferHandler_extern.so cli.spec build dist
+	rm -rf src/__pycache__ src/backend/__pycache__ \
+		transferHandler_extern.so cli.spec build dist
 
 test: clean transferHandler_extern.so
 	echo "Just a heads up this will take around an hour"

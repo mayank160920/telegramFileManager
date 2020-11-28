@@ -1,376 +1,443 @@
-import curses
-import misc
+import urwid
+import os
+import weakref
+import asyncio
+import sys
 
 from backend.sessionsHandler import SessionsHandler
 
+def bytesConvert(rawBytes: int) -> str:
+    if   rawBytes >= 16**10:
+        return "{} TiB".format(round(rawBytes/16**10, 2))
+    elif rawBytes >= 8**10:
+        return "{} GiB".format(round(rawBytes/8**10, 2))
+    elif rawBytes >= 4**10:
+        return "{} MiB".format(round(rawBytes/4**10, 2))
+    elif rawBytes >= 2**10:
+        return "{} KiB".format(round(rawBytes/2**10, 2))
+    else:
+        return "{} Bytes".format(rawBytes)
+
+
+class CustomButton(urwid.Button):
+    signals = ['click', 'cancel', 'delete', 'rename']
+
+    def __init__(self, caption, actionDict = None, info = None):
+        super().__init__(caption)
+
+        self._w = urwid.AttrMap(urwid.SelectableIcon(caption), None, 'reversed')
+        self.actionDict = actionDict
+
+        if info:
+            self.info = info
+
+    def keypress(self, size, key):
+        if key in self.actionDict:
+            self._emit(self.actionDict[key])
+        else:
+            return key
+
+
+class CustomColumns(urwid.Columns):
+    def __init__(self, widget_list, dividechars = 0, info = None):
+        super().__init__(widget_list, dividechars)
+        if info:
+            self.info = info
+
+
 class UserInterface(SessionsHandler):
     def __init__(self):
-        self.notifBuf = ''
-        self.selected = 0
+        super().__init__(False if (len(sys.argv) > 1 and sys.argv[1] == '1') else True)
 
-        self.cfg = misc.loadConfig()
+        self.notifInfo = {'buffer': '', 'timer': 0, 'endTimer': 6}
 
-        try:
-            realChannelID = int(self.cfg['telegram']['channel_id'])
-        except ValueError:
-            realChannelID = self.cfg['telegram']['channel_id']
+        self.loop = asyncio.get_event_loop()
 
-        super().__init__(
-            realChannelID, self.cfg['telegram']['api_id'],
-            self.cfg['telegram']['api_hash'], self.cfg['paths']['data_path'],
-            self.cfg['paths']['tmp_path'], int(self.cfg['telegram']['max_sessions'])
+        self.loop.create_task(self.initSessions())
+
+        self.main_widget = self.build_main_widget()
+
+        self.mainKeyList = [{'keybind' : self.fileIO.cfg['keybinds']['upload'],
+                             'widget' : self.build_upload_widget,
+                             'input' : self.handle_keys_null},
+
+                            {'keybind' : self.fileIO.cfg['keybinds']['download'],
+                             'widget' : self.build_download_widget,
+                             'input' : self.handle_keys_download},
+
+                            {'keybind' : self.fileIO.cfg['keybinds']['resume'],
+                             'widget' : self.build_resume_widget,
+                             'input' : self.handle_keys_null}]
+
+        palette = [('boldtext', 'default,bold', 'default', 'bold'), ('reversed', 'standout', '')]
+
+        self.urwid_loop = urwid.MainLoop(
+            widget=self.main_widget,
+            palette=palette,
+            handle_mouse=False,
+            unhandled_input=self.handle_keys_main,
+            event_loop=urwid.AsyncioEventLoop(loop=self.loop)
         )
 
-        self.scr = curses.initscr()
 
-        curses.noecho()
-        curses.cbreak()
-        curses.curs_set(False)
-        self.scr.keypad(True)
-        self.scr.nodelay(True)
-        self.scr.timeout(5000)
-        # waits for 5 seconds or a key to be pressed to refresh the screen
+    def notification(self, inStr: str):
+        self.notifInfo['buffer'] = inStr
+        self.notifInfo['timer'] = 0
 
 
-    def _getInputs(self, title, prompts):
-        self.scr.nodelay(False)
-        curses.echo()
-        curses.curs_set(True)
+    def change_widget(self, widget, unhandled_input, user_args: dict = None, key = None):
+        """
+        This function creates the given widget giving it the args it received,
+        then it sets urwid_loop's widget and unhandled_input to the ones received
 
-        self.scr.addstr(0, 0, title)
-        i = 2
-        inputs = {}
-        for key, prompt in prompts.items():
-            self.scr.addstr(i, 0, prompt)
-            inputs[key] = self.scr.getstr(i + 1, 0).decode(encoding='utf-8')
+        This function is mainly used by urwid.Button signal callback as it can have only one callback function
+        """
 
-            if not inputs[key]: # User wants to cancel
-                break
+        # Conditionally set argument
+        fun_kwargs = user_args if user_args else {}
 
-            i+=3
-
-        curses.curs_set(False)
-        curses.noecho()
-        self.scr.nodelay(True)
-        self.scr.timeout(5000)
-        self.scr.erase()
-        return inputs
+        self.urwid_loop.widget = widget(**fun_kwargs)
+        self.urwid_loop.unhandled_input = unhandled_input
 
 
-    def _selectFromList(self, title, prompts):
-        self.scr.nodelay(False)
+    def build_main_widget(self):
+        def update_info(used_sessions_ref, notif_text_ref,
+                        transfer_info_ref):
+            local_used_sessions = used_sessions_ref()
+            local_notif_text = notif_text_ref()
+            local_transfer_info = transfer_info_ref()
 
-        MAX_PAD_X = 250
-        promptCount = len(prompts)
-        scrPad = curses.newpad(promptCount+10, MAX_PAD_X) # Y, X max size
-        selected = showX = showY = 0
-        inputKey = None
-        action = 'download'
+            if not local_used_sessions or not local_notif_text or not local_transfer_info:
+                # widget is dead, the main loop must've been destroyed
+                return
 
-        while inputKey != ord('\n'): # Enter
-            scrPad.addstr(0, 0, title, curses.A_STANDOUT)
+            local_used_sessions.set_text("[ {} of {} ]".format(int(self.fileIO.cfg['telegram']['max_sessions']) - len(self.freeSessions),
+                                                               int(self.fileIO.cfg['telegram']['max_sessions'])))
 
-            for i in range(promptCount):
-                scrPad.addstr(2 + i, 2, prompts[i]['title'],
-                              curses.A_STANDOUT if selected == i else curses.A_NORMAL)
+            if self.notifInfo['buffer']:
+                if not self.notifInfo['timer']: # new notification
+                    local_notif_text.set_text(('reversed', self.notifInfo['buffer']))
+                self.notifInfo['timer'] += 1
+                if self.notifInfo['timer'] == self.notifInfo['endTimer']:
+                    local_notif_text.set_text('')
+                    self.notifInfo['timer'] = 0
+                    self.notifInfo['buffer'] = ''
 
-            tlX, tlY = os.get_terminal_size(0)
-            self.scr.refresh()
-            scrPad.refresh(showY, showX, 0, 0, tlY-1, tlX-1)
+            # Delete finished transfers
+            # There is a chance that the transfer doesn't get deleted when it should
+            # if we add another transfer that uses the same session file
+            # inbetween the runs of this loop
+            # In that case, the label of this button would just get updated along
+            # with the progress update of the other transfers
 
-            inputKey = self.scr.getch()
+            local_transfer_info.contents[:] = [x for x in local_transfer_info.contents
+                if self.transferInfo[x[0].info['sFile']]['type']]
 
-            if inputKey == curses.KEY_DOWN and selected < promptCount-1:
-                selected += 1
-                if selected + 4 > showY + tlY:
-                    showY += 1
+            # Update progress, doesn't work
+            #for i, widget in enumerate(local_transfer_info.contents):
+            #    currentTransfer = self.transferInfo[widget[0].info['sFile']]
 
-            elif inputKey == curses.KEY_UP and selected > 0:
-                selected -= 1
-                if selected < showY:
-                    showY -= 1
+            #    label = "{}\n{}\n{}% - {}".format(
+            #        "Uploading:" if currentTransfer['type'] == 'upload' else "Downloading:",
+            #        '/'.join(currentTransfer['rPath']),
+            #        currentTransfer['progress'], bytesConvert(currentTransfer['size'])
+            #    )
 
-            elif inputKey == curses.KEY_NPAGE: # Page Down
-                selected += tlY-1
-                showY += tlY-1
-                if selected > promptCount-1:
-                    selected = promptCount-1
-                if showY > promptCount-(tlY-5):
-                    showY = promptCount-(tlY-5)
+            #    local_transfer_info[i].set_label(label) # the label gets updated but doesn't get shown on screen
 
-            elif inputKey == curses.KEY_PPAGE: # Page Up
-                selected -= tlY-1
-                showY -= tlY-1
-                if selected < 0:
-                    selected = 0
-                if showY < 0:
-                    showY = 0
+            # Add new transfers
+            for sFile, info in self.transferInfo.items():
+                # If the transfer does not exist in local_transfer_info add it
+                if info['type'] and sFile not in [x[0].info['sFile']
+                                                  for x in local_transfer_info.contents]:
+                    label = "{}\n{}\n{}".format(
+                        "Uploading:" if info['type'] == 'upload' else "Downloading:",
+                        '/'.join(info['rPath']),
+                        bytesConvert(info['size'])
+                    )
 
-            elif inputKey == curses.KEY_RIGHT and showX < MAX_PAD_X:
-                showX += round(tlX/2)
-                if showX > MAX_PAD_X-1:
-                    showX = MAX_PAD_X-1
-            elif inputKey == curses.KEY_LEFT and showX >= 0:
-                showX -= round(tlX/2)
-                if showX < 0:
-                    showX = 0
+                    button = CustomButton(label,
+                        {self.fileIO.cfg['keybinds']['cancel']: 'cancel'},
+                        {'sFile': sFile})
 
-            elif inputKey in [ord('d'), ord('D')]:
-                action = 'delete'
-                break
+                    urwid.connect_signal(button, 'cancel', self.cancel_in_loop,
+                        user_args=[sFile, info['size'], info['rPath']]
+                    )
 
-            elif inputKey in [ord('r'), ord('R')]:
-                action = 'rename'
-                break
+                    local_transfer_info.contents.append((button, pack_option))
 
-            elif inputKey in [ord('q'), ord('Q')]:
-                action = 'quit'
-                break
+            # Schedule to update the clock again in one second
+            self.loop.call_later(1, update_info, used_sessions_ref,
+                                 notif_text_ref, transfer_info_ref)
 
-        self.scr.nodelay(True)
-        self.scr.timeout(5000)
-        self.scr.erase()
+        title = urwid.Text("Telegram File Manager", align='center')
+        used_sessions = urwid.Text('', align='right')
+        transfer_info = urwid.Pile([])
+        useless_button = urwid.Button("Current transfers")
+        notif_text = urwid.Text('', align='center')
+        pack_option = transfer_info.options('pack', None)
+        div = urwid.Divider()
 
-        if action == 'quit':
-            return None
-        else:
-            return {'selected' : prompts[selected],
-                    'action' : action}
+        pile = urwid.Pile([title, used_sessions, urwid.Columns([useless_button, ('weight', 3, notif_text)], 1), div, transfer_info])
 
+        update_info(weakref.ref(used_sessions), weakref.ref(notif_text), weakref.ref(transfer_info))
 
-    def resumeHandlerUI(self):
-        inDict = {}
-        for sFile, info in self.resumeData.items():
-            if info:
-                # has resume data that was ignored for later
-                inDict[sFile] = "Session {}, '{}' - {}:".format(sFile,
-                    '/'.join(info['rPath']), misc.bytesConvert(info['size'])
-                )
-
-        if not inDict:
-            self.notifBuf = "No resume information."
-            return
-
-        resumeOpts = self._getInputs("Resume files found, choose an option for each: (1) Finish the transfer (2) Ignore for now (3) Delete resume file",
-                                     inDict)
-
-        for sFile, selected in resumeOpts.items():
-            if selected:
-                try:
-                    intSelected = int(selected)
-                except ValueError:
-                    continue
-
-                self.resumeHandler(sFile, intSelected)
+        return urwid.Filler(pile, 'top')
 
 
-    def cancelHandler(self):
-        if not self.selected:
-            self.notifBuf = "No transfer selected to cancel."
-            return
+    def build_upload_widget(self):
+        fpath = urwid.Edit(('boldtext', "File Path:\n"))
+        rpath = urwid.Edit(('boldtext', "Relative Path:\n"))
 
-        # Only solution I found for cancelling the right transfer
-        i = 0
-        for sFile, info in self.transferInfo.items():
-            if not info['type']: # empty
-                continue
-            i += 1
-            if i == self.selected:
-                if info['size'] <= self.chunkSize: # no chunks
-                    self.notifBuf = "Can't cancel single chunk transfers"
-                    return
+        upload = urwid.Button("Upload")
+        urwid.connect_signal(upload, 'click', self.upload_in_loop,
+            weak_args=[fpath, rpath])
 
-                try:
-                    if self._getInputs("Cancel transfer {}?".format('/'.join(info['rPath'])),
-                            {'selected' : "Type 'yes' if you are sure:"})['selected'] == 'yes':
-                        self.cancelTransfer(sFile)
-                        self.notifBuf = "Transfer {} cancelled".format('/'.join(info['rPath']))
-                except ValueError:
-                    self.notifBuf = "Transfer already cancelled."
+        cancel = urwid.Button("Cancel", self.return_to_main)
 
-                break
+        div = urwid.Divider()
+        pile = urwid.Pile([fpath, div, rpath, div,
+                           urwid.AttrMap(upload, None, focus_map='reversed'),
+                           urwid.AttrMap(cancel, None, focus_map='reversed')])
+
+        return urwid.Filler(pile, 'top')
 
 
-    def uploadHandler(self):
-        if not self.freeSessions:
-            self.notifBuf = 'All sessions are currently used.'
-            return
-
-        inData = self._getInputs("Upload", {'path'  : "File Path:",
-                                            'rPath' : "Relative Path:"})
-
-        if not inData['path'] or not inData['rPath']:
-            return
-
-        if not os.path.isfile(inData['path']):
-            self.notifBuf = "There is no file with this path."
-            return
-
-        self.transferInThread({'rPath'      : inData['rPath'].split('/'),
-                               'path'       : inData['path'],
-                               'size'       : os.path.getsize(inData['path']),
-                               'fileID'     : [],
-                               'index'      : 0, # managed by transferHandler
-                               'chunkIndex' : 0,
-                               'type'       : 'upload',
-                               'handled'    : 0})
-
-
-    def downloadHandler(self):
-        if not self.freeSessions:
-            self.notifBuf = 'All sessions are currently used.'
-            return
-
-        prompts = []
+    def build_download_widget(self):
         totalSize = 0
-        # Generate list dynamically
+
+        dpath = urwid.Edit(('boldtext', "Download path: "),
+            os.path.join(self.fileIO.cfg['paths']['data_path'], 'downloads'))
+
+        body = [dpath, urwid.Divider()]
+
         for i in self.fileDatabase:
             totalSize += i['size']
 
-            prompts.append({'title'  : "{}  {}".format(
-                                '/'.join(i['rPath']),
-                                misc.bytesConvert(i['size'])
-                            ),
-                            'rPath'  : i['rPath'],
-                            'fileID' : i['fileID'],
-                            'size'   : i['size']})
+            button = CustomButton("{}  {}".format(
+                                    '/'.join(i['rPath']),
+                                    bytesConvert(i['size'])),
+                                  {'enter' : 'click',
+                                   'd'     : 'delete',
+                                   'r'     : 'rename'})
 
-        inData = self._selectFromList("Enter to download, d to delete, r to rename - {} Total".format(
-                                          misc.bytesConvert(totalSize)
-                                      ), prompts)
+            urwid.connect_signal(button, 'click', self.download_in_loop,
+                weak_args=[dpath],
+                user_args=[i['rPath'], i['fileID'], i['size']]
+            )
 
-        if inData: # not cancelled
-            if inData['action'] == 'delete':
-                if self._getInputs("Delete file {}?".format('/'.join(inData['selected']['rPath'])),
-                                    {'selected' : "Type 'yes' if you are sure:"})['selected'] != 'yes':
-                    return
+            fileData_tmp = {'fileData': {'rPath': i['rPath'], 'fileID': i['fileID'], 'size': i['size']}}
 
-                tmpData = {'rPath'  : inData['selected']['rPath'],
-                           'fileID' : inData['selected']['fileID'],
-                           'size'   : inData['selected']['size']}
-                self.deleteInDatabase(tmpData)
-                return
+            urwid.connect_signal(button, 'rename', self.change_widget,
+                user_args=[self.build_rename_widget, self.handle_keys_null,
+                           fileData_tmp]
+            )
 
-            if inData['action'] == 'rename':
-                tmpName = "{}:".format('/'.join(inData['selected']['rPath']))
-                name = self._getInputs("Rename file", {'rPath' : tmpName})['rPath']
+            urwid.connect_signal(button, 'delete', self.change_widget,
+                user_args=[self.build_delete_widget, self.handle_keys_null,
+                           fileData_tmp]
+            )
 
-                if not name:
-                    return
+            body.append(button)
 
-                tmpData = {'rPath'  : inData['selected']['rPath'],
-                           'fileID' : inData['selected']['fileID'],
-                           'size'   : inData['selected']['size']}
+        body.insert(0, urwid.Text(
+            ('reversed', "Enter to download, d to delete, r to rename - {} Total".format(
+                bytesConvert(totalSize)
+            ))
+        ))
 
-                self.renameInDatabase(tmpData, name.split('/'))
-                return
-
-            # else download
-            dPath = self._getInputs("Download file {}".format('/'.join(inData['selected']['rPath'])),
-                                    {'dPath' : "Download path, leave empty for default:"})['dPath']
-
-            # check if folder exists
-            if dPath and not os.path.isdir(dPath):
-                self.notifBuf = "Specified path does not exist."
-                return
-
-            self.transferInThread({'rPath'   : inData['selected']['rPath'],
-                                            'dPath'   : dPath,
-                                            'fileID'  : inData['selected']['fileID'],
-                                            'IDindex' : 0,
-                                            'size'    : inData['selected']['size'],
-                                            'type'    : 'download',
-                                            'handled' : 0})
+        listBox = urwid.ListBox(urwid.SimpleFocusListWalker(body))
+        return urwid.Padding(listBox, left=2, right=2)
 
 
-    def main(self):
-        NAME = "Telegram File Manager"
-        optionDict = {'upload' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['upload']), 'function' : self.uploadHandler},
-                      'download' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['download']), 'function' : self.downloadHandler},
-                      'cancel' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['cancel']), 'function' : self.cancelHandler},
-                      'resume' : {'value' : False, 'keybind' : ord(self.cfg['keybinds']['resume']), 'function' : self.resumeHandlerUI}}
+    def build_resume_widget(self):
+        """
+        Widget that shows unfinished transfers and prompts the user
+        to either resume, ignore or delete each of the transfers.
 
-        try:
-            self.resumeHandlerUI()
+        When one of these actions is selected for a transfer, that
+        transfer gets removed from the widget so that the user can't
+        select multiple actions for a transfer.
+        """
 
-            while True:
-                self.scr.erase()
-                tlX, tlY = os.get_terminal_size(0)
+        title = urwid.Button(('boldtext', "Cancelled transfers:"))
+        div = urwid.Divider()
 
-                for option, info in optionDict.items():
-                    if info['value']:
-                        info['function']()
-                        info['value'] = False
-                        break
+        pile = urwid.Pile([title, div])
+        pack_option = pile.options('pack', None)
 
-                usedSessionStr = "[ {} of {} ]".format(
-                    self.max_sessions - len(self.freeSessions), self.max_sessions)
+        for sFile, info in self.resumeData.items():
+            if info:
+                # has resume data that was ignored for later
+                transfer_name = urwid.Text("Session {}, '{}' - {}:".format(sFile,
+                    '/'.join(info['rPath']), bytesConvert(info['size'])))
 
-                # program name
-                self.scr.addstr(0, max(round((tlX-len(NAME))/2), 0), NAME)
-                # Nr of used sessions
-                self.scr.addstr(1, max(tlX-len(usedSessionStr), 0), usedSessionStr)
+                resume = urwid.Button("Resume")
+                urwid.connect_signal(resume, 'click', self.resume_in_loop,
+                                     weak_args=[pile],
+                                     user_args=[sFile, 1]
+                )
 
-                # transfer info
-                i = 2 # on which line to start displaying transfers
-                if self.selected:
-                    for j in range((self.selected-1)*4+i, (self.selected-1)*4+i+3):
-                        self.scr.addch(j, 0, '*')
+                ignore = urwid.Button("Ignore")
+                urwid.connect_signal(ignore, 'click', self.resume_in_loop,
+                                     weak_args=[pile],
+                                     user_args=[sFile, 2]
+                )
 
-                for sFile, info in self.transferInfo.items():
-                    if not info['type']: # empty
-                        continue
+                delete = urwid.Button("Delete")
+                urwid.connect_signal(delete, 'click', self.resume_in_loop,
+                                     weak_args=[pile],
+                                     user_args=[sFile, 3]
+                )
 
-                    self.scr.addstr(i, 2, "Uploading:" if info['type'] == 'upload' else "Downloading:")
-                    self.scr.addstr(i+1, 2, '/'.join(info['rPath']))
-                    self.scr.addstr(i+2, 2, "{}% - {}".format(info['progress'], misc.bytesConvert(info['size'])))
-                    i+=4
+                option_pile = urwid.Pile([urwid.AttrMap(resume, None, focus_map='reversed'),
+                                          urwid.AttrMap(ignore, None, focus_map='reversed'),
+                                          urwid.AttrMap(delete, None, focus_map='reversed')])
 
-                if self.notifBuf:
-                    self.scr.addstr(tlY-1, 0, self.notifBuf, curses.A_STANDOUT)
-                    self.notifBuf = ''
+                transfer_columns = CustomColumns([('weight', 4, transfer_name),
+                                                  ('weight', 1, option_pile)], 1,
+                                                 {'sFile': sFile})
 
-                ignoredTransfers = 0
-                for i in range(1, self.max_sessions+1):
-                    if (
-                        self.resumeData[str(i)] and
-                        self.resumeData[str(i)]['handled'] == 1
-                       ):
-                        ignoredTransfers += 1
+                pile.contents.append((transfer_columns, pack_option))
+                pile.contents.append((div, pack_option))
 
-                ch = self.scr.getch()
-                if ch == curses.KEY_UP and self.selected > 1:
-                    self.selected -= 1
-                elif (
-                      ch == curses.KEY_DOWN and
-                      (self.selected < self.max_sessions -
-                          (len(self.freeSessions) + ignoredTransfers))
-                     ):
-                    self.selected += 1
+        if len(pile.contents) == 2:
+            self.notification("No resume information")
+            # the function that called this function always expects it to
+            # return a widget, that's why we can't use return_to_main
+            self.urwid_loop.unhandled_input = self.handle_keys_main
+            return self.main_widget
 
-                elif ch == ord('q'):
-                    break
+        pile.contents.append((urwid.Button("Done", self.return_to_main), pack_option))
 
-                for option, info in optionDict.items():
-                    if info['keybind'] == ch:
-                        info['value'] = True
-                        break
+        return urwid.Filler(pile, 'top')
 
-                # Go to the last transfer if the transfer that was selected finished
-                if (self.selected > self.max_sessions -
-                        (len(self.freeSessions) + ignoredTransfers)):
 
-                    self.selected = (self.max_sessions -
-                        (len(self.freeSessions) + ignoredTransfers))
+    def build_rename_widget(self, fileData):
+        newName = urwid.Edit(('boldtext', "Rename {}:\n".format(
+            '/'.join(fileData['rPath']))))
 
-        except KeyboardInterrupt: # dont crash the terminal when quitting with Ctrl+C
-            pass
+        rename = urwid.Button("Rename")
+        urwid.connect_signal(rename, 'click', self.rename_in_loop, weak_args=[newName], user_args=[fileData])
 
-        # exit
-        curses.endwin()
-        self.endSessions() # Must call to exit the program
+        cancel = urwid.Button("Cancel", self.return_to_main)
+
+        div = urwid.Divider()
+        pile = urwid.Pile([newName, div,
+                           urwid.AttrMap(rename, None, focus_map='reversed'),
+                           urwid.AttrMap(cancel, None, focus_map='reversed')])
+
+        return urwid.Filler(pile, 'top')
+
+
+    def build_delete_widget(self, fileData):
+        confirm_text = urwid.Text(('boldtext', "Are you sure you want to delete {}?".format(
+            '/'.join(fileData['rPath']))))
+
+        delete = urwid.Button("Delete")
+        urwid.connect_signal(delete, 'click', self.delete_in_loop, user_args=[fileData])
+
+        cancel = urwid.Button("Cancel", self.return_to_main)
+
+        div = urwid.Divider()
+        pile = urwid.Pile([confirm_text, div,
+                           urwid.AttrMap(cancel, None, focus_map='reversed'),
+                           urwid.AttrMap(cancel, None, focus_map='reversed'),
+                           urwid.AttrMap(delete, None, focus_map='reversed'),
+                           urwid.AttrMap(cancel, None, focus_map='reversed')])
+
+        return urwid.Filler(pile, 'top')
+
+
+    def handle_keys_main(self, key):
+        if key == 'esc':
+            raise urwid.ExitMainLoop
+
+        for i in self.mainKeyList:
+            if key == i['keybind']:
+                self.urwid_loop.unhandled_input = i['input']
+                self.urwid_loop.widget = i['widget']() # build widget everytime
+                break # don't check for other keys
+
+
+    def handle_keys_download(self, key):
+        if key == 'q':
+            self.return_to_main()
+
+
+    def handle_keys_null(self, key): pass
+
+
+    def return_to_main(self, key = None):
+        self.urwid_loop.widget = self.main_widget
+        self.urwid_loop.unhandled_input = self.handle_keys_main
+
+
+    def upload_in_loop(self, path, rPath, key):
+        path_str = path.edit_text
+        rPath_str = rPath.edit_text
+
+        if not self.freeSessions:
+            self.notification("All sessions are currently used")
+        elif not path_str or not rPath_str:
+            self.notification("Please enter all info")
+        elif not os.path.isfile(path_str):
+            self.notification("There is no file with this path")
+        else:
+            self.loop.create_task(self.upload({
+                'rPath'   : rPath_str.split('/'),
+                'path'    : path_str,
+                'size'    : os.path.getsize(path_str),
+                'type'    : 'upload'
+            }))
+
+        self.return_to_main()
+
+
+    def download_in_loop(self, dPath, rPath, fileID, size, key):
+        if not self.freeSessions:
+            self.notification("All sessions are currently used")
+        else:
+            self.loop.create_task(self.download({
+                'rPath'   : rPath,
+                'dPath'   : dPath.edit_text,
+                'fileID'  : fileID,
+                'size'    : size,
+                'type'    : 'download'
+            }))
+
+        self.return_to_main()
+
+
+    def resume_in_loop(self, pile_widget, sFile, selected, key):
+        self.loop.create_task(self.resumeHandler(sFile, selected))
+
+        # Remove current transfer from pile_widget but don't delete other widgets
+        pile_widget.contents[:] = [x for x in pile_widget.contents
+            if type(x[0]) != CustomColumns or x[0].info['sFile'] != sFile]
+        pile_widget.focus_position = 0
+
+
+    def rename_in_loop(self, rename_widget, fileData, key):
+        self.renameInDatabase(fileData, rename_widget.edit_text.split('/'))
+        self.return_to_main()
+
+
+    def delete_in_loop(self, fileData, key):
+        self.loop.create_task(self.deleteInDatabase(fileData))
+        self.return_to_main()
+
+
+    def cancel_in_loop(self, sFile, size, rPath, key):
+        if size <= self.chunkSize: # no chunks
+            self.notification("Can't cancel single chunk transfers")
+        elif self.tHandler[sFile].should_stop:
+            self.notification("Transfer already cancelled")
+        else:
+            asyncio.create_task(self.cancelTransfer(sFile))
+            self.notification("Transfer {} cancelled".format('/'.join(rPath)))
 
 
 if __name__ == "__main__":
     ui = UserInterface()
-    ui.main()
+    ui.urwid_loop.run()

@@ -5,6 +5,7 @@ src/config.py
 *.so
 *.session
 *.spec
+*.swp
 downloads
 build
 dist
