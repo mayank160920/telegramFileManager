@@ -26,6 +26,10 @@ from shutil import copyfile
 from os import path
 import sys
 from backend.asyncFiles import AsyncFiles
+import logging
+
+# Disable messages from pyrogram
+logging.getLogger('pyrogram').setLevel(logging.ERROR)
 
 
 class TransferHandler:

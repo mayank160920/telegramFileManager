@@ -6,6 +6,7 @@ import sys
 
 from backend.sessionsHandler import SessionsHandler
 
+
 def bytesConvert(rawBytes: int) -> str:
     if   rawBytes >= 16**10:
         return "{} TiB".format(round(rawBytes/16**10, 2))
