@@ -268,8 +268,8 @@ class UserInterface(SessionsHandler):
         pack_option = pile.options('pack', None)
 
         for sFile, info in self.resumeData.items():
-            if info:
-                # has resume data that was ignored for later
+            if info and not self.transferInfo[sFile]['type']:
+                # has resume data that wasn't handled
                 transfer_name = urwid.Text("Session {}, '{}' - {}:".format(sFile,
                     '/'.join(info['rPath']), bytesConvert(info['size'])))
 
