@@ -18,6 +18,7 @@ class FileIO:
             self.cfg['paths'] = {}
             self.cfg['paths']['data_path'] = os.path.expanduser("~/tgFileManager")
             self.cfg['paths']['tmp_path'] = os.path.expanduser("~/.tmp/tgFileManager")
+            self.cfg['paths']['download_full_path'] = False
             self.cfg['keybinds'] = {}
             self.cfg['keybinds']['upload'] = 'u'
             self.cfg['keybinds']['download'] = 'd'

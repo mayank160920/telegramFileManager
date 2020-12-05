@@ -23,7 +23,7 @@ then the original file will be replaced. (If the original has not been moved)
 from pyrogram import Client
 import asyncio
 from shutil import copyfile
-from os import path
+from os import path, makedirs
 import sys
 from backend.asyncFiles import AsyncFiles
 import logging
@@ -54,6 +54,7 @@ class TransferHandler:
         self.s_file = s_file # we need this for the naming when uploading
         self.progress_fun = progress_fun
         self.data_fun = data_fun
+        self.download_full_path = config['paths']['download_full_path']
         self.now_transmitting = 0 # no, single chunk, multi chunk (0-2)
         self.should_stop = 0
 
@@ -135,10 +136,22 @@ class TransferHandler:
     async def downloadFiles(self, fileData: dict):
         self.now_transmitting = 1 if fileData['size'] <= self.chunk_size else 2
 
-        final_file_path = path.join(fileData['dPath'], fileData['rPath'][-1]) if fileData['dPath'] else \
-                          path.join(self.data_path, "downloads", fileData['rPath'][-1])
-        tmp_file_path = path.join(self.tmp_path, "tfilemgr",
-                                  "{}_chunk".format(fileData['rPath'][-1]))
+        if self.download_full_path:
+            final_dir_path = path.join(fileData['dPath'], *fileData['rPath'][:-1]) if fileData['dPath'] else \
+                             path.join(self.data_path, "downloads", *fileData['rPath'][:-1])
+
+            final_file_path = path.join(fileData['dPath'], *fileData['rPath']) if fileData['dPath'] else \
+                              path.join(self.data_path, "downloads", *fileData['rPath'])
+            tmp_file_path = path.join(self.tmp_path, "tfilemgr",
+                                      "{}_chunk".format(fileData['rPath'][-1]))
+
+            if not path.isdir(final_dir_path):
+                makedirs(final_dir_path)
+        else:
+            final_file_path = path.join(fileData['dPath'], fileData['rPath'][-1]) if fileData['dPath'] else \
+                              path.join(self.data_path, "downloads", fileData['rPath'][-1])
+            tmp_file_path = path.join(self.tmp_path, "tfilemgr",
+                                      "{}_chunk".format(fileData['rPath'][-1]))
 
         while fileData['IDindex'] < len(fileData['fileID']):
             async with self.telegram:
